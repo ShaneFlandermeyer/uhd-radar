@@ -12,4 +12,5 @@ else (NOT UHD_USE_STATIC_LIBS)
 endif (NOT UHD_USE_STATIC_LIBS)
 # Add executables
 add_executable(init_usrp init_usrp.cc)
-add_executable(b210_loopback b210_loopback.cc)
+add_executable(b210_loopback b210_loopback.cc  ${INCLUDE_HEADERS})
+target_include_directories(b210_loopback PUBLIC ${CMAKE_SOURCE_DIR}/include)

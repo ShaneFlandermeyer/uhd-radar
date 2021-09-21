@@ -29,9 +29,10 @@ link_directories(${Boost_LIBRARY_DIRS})
 ########################################################################
 # Add subdirectories
 ########################################################################
-add_subdirectory(src)
+add_subdirectory(include)
+add_subdirectory(lib)
+add_subdirectory(app)
 
 ########################################################################
 # Add subdirectories
 ########################################################################
-# add_executable(init_usrp init_usrp.cc)

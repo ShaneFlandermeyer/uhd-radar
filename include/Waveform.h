@@ -1,1 +1,5 @@
-// TODO: Implement me
+class Waveform {
+  public:
+  private:
+  
+};
