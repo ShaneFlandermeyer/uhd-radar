@@ -10,7 +10,11 @@ else (NOT UHD_USE_STATIC_LIBS)
   ${UHD_STATIC_LIB_LINK_FLAG}
   ${UHD_STATIC_LIB_DEPS})
 endif (NOT UHD_USE_STATIC_LIBS)
+########################################################################
 # Add executables
+########################################################################
+# init_usrp is super basic and doesn't need any sources
 add_executable(init_usrp init_usrp.cc)
-add_executable(b210_loopback b210_loopback.cc  ${INCLUDE_HEADERS})
+# Add B210 loopback example and link it to our include directory
+add_executable(b210_loopback b210_loopback.cc  ${UHD_RADAR_SOURCES})
 target_include_directories(b210_loopback PUBLIC ${CMAKE_SOURCE_DIR}/include)
