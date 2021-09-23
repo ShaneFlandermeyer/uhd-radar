@@ -22,6 +22,7 @@ std::vector<std::complex<float>> LinearFMWaveform::generateWaveform() {
         -bandwidth / 2 * t + bandwidth / (2 * pulsewidth) * std::pow(t, 2);
     lfm[n] = std::exp(j * (float)(2 * M_PI) * phase);
   }
+  return lfm;
 }
 
 /*
