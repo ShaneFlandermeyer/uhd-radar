@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
   float pulsewidth = 10e-6;
   float prf = 1e3;
   LinearFMWaveform lfm(bandwidth, pulsewidth, prf, sampleRate);
-  lfm.generateWaveform();
+  auto wav = lfm.generateWaveform();
   /*
    * Tx streamer setup
    */

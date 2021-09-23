@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20.1)
+cmake_minimum_required(VERSION 3.21.2)
 project(UHD_RADAR VERSION 1.0 LANGUAGES CXX)
 
 ########################################################################
