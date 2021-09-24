@@ -115,7 +115,7 @@ def main():
 
     # Define the streaming args.
     streamArgs = uhd.usrp.StreamArgs("fc32", "sc16")
-    streamArgs.args = "spp=1024"
+    streamArgs.args = ""
     # Let's Create the TX Streamer using the args.
     txStreamer = graph.create_tx_streamer(1, streamArgs)
     # Let's Create the RX Streamer using the args.
