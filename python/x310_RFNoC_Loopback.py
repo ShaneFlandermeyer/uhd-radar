@@ -15,7 +15,6 @@ import uhd
 import math
 import matplotlib.pyplot as plt
 import numpy as np
-import cmath
 from uhd import rfnoc
 import threading
 
@@ -96,7 +95,7 @@ def main():
     rxBlock.set_rx_gain(args.rx_gain, 0)
     rxBlock.set_rx_bandwidth(args.rx_rate, 0)
     rxBlock.set_rx_dc_offset(False, 0)
-    rxBlock.set_rx_frequency(5e9, 0)
+    rxBlock.set_rx_frequency(args.cent_freq, 0)
 
     # Print details about the RX radio.
     print("TX: -----------------------")
@@ -115,7 +114,7 @@ def main():
 
     # Define the streaming args.
     streamArgs = uhd.usrp.StreamArgs("fc32", "sc16")
-    streamArgs.args = ""
+    streamArgs.args = "spp=1024"
     # Let's Create the TX Streamer using the args.
     txStreamer = graph.create_tx_streamer(1, streamArgs)
     # Let's Create the RX Streamer using the args.
@@ -143,9 +142,9 @@ def main():
     # Commit the graph.
     graph.commit()
 
-    ###################################
+    #####################################
     # Do as much as possible before here.
-    ##################################
+    #####################################
     input("Press Enter to continue...")
 
     # Create the metadata structures for the commands
@@ -164,13 +163,12 @@ def main():
     motherboard = graph.get_mb_controller()
     timekeeper = motherboard.get_timekeeper(0)
     # Add timespec to the metadata
-    goTime = uhd.types.TimeSpec(0.1)
+    goTime = timekeeper.get_time_now()
 
     txMeta1.has_time_spec = True
-    txMeta1.time_spec = goTime
-    streamCMD.time_spec = goTime
+    txMeta1.time_spec = goTime + 0.1
+    streamCMD.time_spec = goTime + 0.1
 
-    timekeeper.set_time_now(uhd.types.TimeSpec(0.0))
     # Issue the stream cmd and start the recv and send threads.
     rxBlock.issue_stream_cmd(streamCMD, 0)
     recvProcess.start()
@@ -192,6 +190,7 @@ def main():
 def doRecv(rxStreamer, rxData, rxMeta):
     recieved = rxStreamer.recv(rxData, rxMeta)
     print("\n", recieved)
+    print("\n", rxMeta)
 
 
 def doSend(txStreamer, txData1, txData2, txMeta1, txMeta2):
