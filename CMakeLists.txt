@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20.1)
+cmake_minimum_required(VERSION 3.21.2)
 project(UHD_RADAR VERSION 1.0 LANGUAGES CXX)
 
 ########################################################################
@@ -19,7 +19,7 @@ set(UHD_BOOST_REQUIRED_COMPONENTS
 set(BOOST_MIN_VERSION 1.58)
 # Include UHDBoost to do the actual finding
 include(UHDBoost)
-
+# Include miscellaneous directories that should be available to the whole project
 include_directories(
   ${Boost_INCLUDE_DIRS}
   ${UHD_INCLUDE_DIRS}
@@ -29,9 +29,6 @@ link_directories(${Boost_LIBRARY_DIRS})
 ########################################################################
 # Add subdirectories
 ########################################################################
-add_subdirectory(src)
-
-########################################################################
-# Add subdirectories
-########################################################################
-# add_executable(init_usrp init_usrp.cc)
+add_subdirectory(include)
+add_subdirectory(lib)
+add_subdirectory(app)
