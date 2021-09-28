@@ -2,7 +2,6 @@
 # This script is desinged to run a simultaneous transmit and recieve using a
 # USRP X310 Radio.
 #
-# Usage: loopback.py [TX File] [SampleRate] [Oversampling Rate]
 #
 # This script should initialize the radio, wait for a user trigger from the
 # keyboard and the send the start commands a 1 second later.
