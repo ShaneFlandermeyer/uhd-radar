@@ -1,10 +1,15 @@
 #include <boost/program_options.hpp>
+#include <boost/thread.hpp>
+#include <chrono>
+#include <csignal>
+#include <thread>
 #include <uhd/usrp/multi_usrp.hpp>
 #include <uhd/utils/safe_main.hpp>
-#include <thread>
-#include <chrono>
 
 #include "LinearFMWaveform.h"
+
+#define VERBOSE true
+#define STOP_TIME 5
 /***********************************************************************
  * Signal handlers
  **********************************************************************/
@@ -17,14 +22,28 @@ namespace po = boost::program_options;
  * Worker function to handle transmit operation
  * (Gets its own thread in main())
  */
-void transmit(std::vector<std::complex<float>> buffer,
-              std::vector<std::complex<float>> waveform,
-              uhd::tx_streamer::sptr txStreamer, uhd::tx_metadata_t txMeta,
-              size_t step, size_t index, int nChannels) {}
+void transmit(LinearFMWaveform& waveform,
+              std::vector<std::complex<float>*> buffs,
+              uhd::tx_streamer::sptr txStream) {
+  double sendTime = 0.1;
+  uhd::tx_metadata_t txMeta;
+  txMeta.has_time_spec = true;
+  txMeta.time_spec = uhd::time_spec_t(sendTime);
+  int nSampsPulse = std::round(waveform.sampleRate / waveform.prf);
+  int pri = 1 / waveform.prf;
+  size_t nTxSamps = txStream->send(buffs, nSampsPulse, txMeta, sendTime);
+  while (!stopSignalCalled) {
+    sendTime += pri;
+    txMeta.has_time_spec = true;
+    txMeta.time_spec = uhd::time_spec_t(sendTime);
+    nTxSamps = txStream->send(buffs, nSampsPulse, txMeta, sendTime);
+  }
+}
 
 // NOTE: UHD_SAFE_MAIN is just a macro that places a catch-all around the
 // regular main()
 int main(int argc, char* argv[]) {
+  std::signal(SIGINT, &sigIntHandler);
   /*
    * USRP device setup
    */
@@ -49,32 +68,11 @@ int main(int argc, char* argv[]) {
   /*
    * Waveform setup
    */
-  float bandwidth = 10e6;
+  float bandwidth = 20e6;
   float pulsewidth = 10e-6;
-  float prf = 1e3;
+  double prf = 10e3;
+  double pri = 1 / prf;
   LinearFMWaveform lfm(bandwidth, pulsewidth, prf, sampleRate);
-  auto waveform = lfm.generateWaveform();
-  /*
-   * Tx streamer setup
-   */
-  uhd::stream_args_t streamArgs("fc32", "sc16");
-  streamArgs.channels = txChanNums;
-  uhd::tx_streamer::sptr txStream = usrp->get_tx_stream(streamArgs);
-  // Allocate a buffer to store data for each channel
-  int spb = txStream->get_max_num_samps() * 10;
-  std::vector<std::complex<float>> buff(spb);
-  // TODO: When using multiple channels, this should be chan.size()
-  int nChan = 1;
-
-  /*
-   * Tx metadata
-   */
-  uhd::tx_metadata_t txMeta;
-  txMeta.start_of_burst = true;
-  txMeta.end_of_burst = false;
-  txMeta.has_time_spec = true;
-  // Wait 0.5 seconds as the buffers are filled
-  txMeta.time_spec = uhd::time_spec_t(0.5);
 
   /*
    * Check for ref & LO lock
@@ -99,27 +97,21 @@ int main(int argc, char* argv[]) {
     UHD_ASSERT_THROW(lo_locked.to_bool());
   }
 
-  // Reset USRP time to prepare for Tx/Rx
-  std::cout << boost::format("Setting device timestamp to 0...") << std::endl;
+  uhd::stream_args_t streamArgs("fc32", "sc16");
+  streamArgs.channels = txChanNums;
+  uhd::tx_streamer::sptr txStream = usrp->get_tx_stream(streamArgs);
+  bool repeat = true;
+  auto waveform = lfm.generateWaveform();
+  int nSampsPulse = std::round(sampleRate*pulsewidth);
+  auto buff = waveform;
+  // Create a vector of zeros
+  std::vector<std::complex<float>*> buffs(1, &buff.front());
   usrp->set_time_now(0.0);
-
-  // Start Tx thread
-  // void transmit(std::vector<std::complex<float>> buffer,
-  // std::vector<std::complex<float>> waveform,
-  // uhd::tx_streamer::sptr txStreamer, uhd::tx_metadata_t txMeta,
-  // size_t step, size_t index, int nChannels)
-  // TODO: I really don't think these are necessary
-  const size_t step = 1;
-  size_t index = 0;
   boost::thread_group txThread;
-  txThread.create_thread(
-      std::bind(transmit, buff, waveform, txStream, txMeta, step, index,nChan));
+  txThread.create_thread(std::bind(&transmit, lfm,buffs, txStream));
 
-  // Transmit for two seconds
-  std::this_thread::sleep_for(std::chrono::seconds(2));
-  // Clean up transmit worker
-  stopSignalCalled = true;
   txThread.join_all();
 
+  std::cout << "Done (with failure!)" << std::endl;
   return EXIT_SUCCESS;
 }
