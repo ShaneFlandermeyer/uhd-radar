@@ -30,7 +30,7 @@ void transmit(LinearFMWaveform& waveform,
   txMeta.has_time_spec = true;
   txMeta.time_spec = uhd::time_spec_t(sendTime);
   int nSampsPulse = std::round(waveform.sampleRate / waveform.prf);
-  int pri = 1 / waveform.prf;
+  double pri = 1 / waveform.prf;
   size_t nTxSamps = txStream->send(buffs, nSampsPulse, txMeta, sendTime);
   while (!stopSignalCalled) {
     sendTime += pri;
