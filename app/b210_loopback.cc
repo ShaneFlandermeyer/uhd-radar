@@ -22,27 +22,31 @@ namespace po = boost::program_options;
  * Worker function to handle transmit operation
  * (Gets its own thread in main())
  */
-void transmit(LinearFMWaveform& waveform,
-              std::vector<std::complex<float>*> buffs,
-              uhd::tx_streamer::sptr txStream) {
+void transmit(LinearFMWaveform &waveform,
+              std::vector<std::complex<float> *> buffs,
+              uhd::tx_streamer::sptr txStream)
+{
+  double pri = 1 / waveform.prf;
   double sendTime = 0.1;
+  double timeout = 0.1 + pri;
   uhd::tx_metadata_t txMeta;
   txMeta.has_time_spec = true;
   txMeta.time_spec = uhd::time_spec_t(sendTime);
   int nSampsPulse = std::round(waveform.sampleRate / waveform.prf);
-  double pri = 1 / waveform.prf;
-  size_t nTxSamps = txStream->send(buffs, nSampsPulse, txMeta, sendTime);
-  while (!stopSignalCalled) {
+  size_t nTxSamps = txStream->send(buffs, nSampsPulse, txMeta, timeout);
+  while (!stopSignalCalled)
+  {
     sendTime += pri;
     txMeta.has_time_spec = true;
     txMeta.time_spec = uhd::time_spec_t(sendTime);
-    nTxSamps = txStream->send(buffs, nSampsPulse, txMeta, sendTime);
+    nTxSamps = txStream->send(buffs, nSampsPulse, txMeta, timeout);
   }
 }
 
 // NOTE: UHD_SAFE_MAIN is just a macro that places a catch-all around the
 // regular main()
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[])
+{
   std::signal(SIGINT, &sigIntHandler);
   /*
    * USRP device setup
@@ -82,7 +86,8 @@ int main(int argc, char* argv[]) {
   rxSensorNames = usrp->get_rx_sensor_names(0);
   // Tx check
   if (std::find(txSensorNames.begin(), txSensorNames.end(), "lo_locked") !=
-      txSensorNames.end()) {
+      txSensorNames.end())
+  {
     uhd::sensor_value_t lo_locked = usrp->get_tx_sensor("lo_locked", 0);
     std::cout << boost::format("Checking Tx %s") % lo_locked.to_pp_string()
               << std::endl;
@@ -90,7 +95,8 @@ int main(int argc, char* argv[]) {
   }
   // Rx check
   if (std::find(rxSensorNames.begin(), rxSensorNames.end(), "lo_locked") !=
-      rxSensorNames.end()) {
+      rxSensorNames.end())
+  {
     uhd::sensor_value_t lo_locked = usrp->get_rx_sensor("lo_locked", 0);
     std::cout << boost::format("Checking Rx %s") % lo_locked.to_pp_string()
               << std::endl;
@@ -102,16 +108,16 @@ int main(int argc, char* argv[]) {
   uhd::tx_streamer::sptr txStream = usrp->get_tx_stream(streamArgs);
   bool repeat = true;
   auto waveform = lfm.generateWaveform();
-  int nSampsPulse = std::round(sampleRate*pulsewidth);
+  int nSampsPulse = std::round(sampleRate * pulsewidth);
   auto buff = waveform;
   // Create a vector of zeros
-  std::vector<std::complex<float>*> buffs(1, &buff.front());
+  std::vector<std::complex<float> *> buffs(1, &buff.front());
   usrp->set_time_now(0.0);
   boost::thread_group txThread;
-  txThread.create_thread(std::bind(&transmit, lfm,buffs, txStream));
+  txThread.create_thread(std::bind(&transmit, lfm, buffs, txStream));
 
   txThread.join_all();
 
-  std::cout << "Done (with failure!)" << std::endl;
+  std::cout << "Done!" << std::endl;
   return EXIT_SUCCESS;
 }
