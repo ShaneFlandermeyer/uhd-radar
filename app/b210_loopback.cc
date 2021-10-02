@@ -19,6 +19,34 @@ void sigIntHandler(int) { stopSignalCalled = true; }
 namespace po = boost::program_options;
 
 /*
+ * Check for LO lock
+ */
+void checkLoLock(uhd::usrp::multi_usrp::sptr usrp)
+{
+  std::vector<std::string> txSensorNames, rxSensorNames;
+  txSensorNames = usrp->get_tx_sensor_names(0);
+  rxSensorNames = usrp->get_rx_sensor_names(0);
+  // Tx check
+  if (std::find(txSensorNames.begin(), txSensorNames.end(), "lo_locked") !=
+      txSensorNames.end())
+  {
+    uhd::sensor_value_t lo_locked = usrp->get_tx_sensor("lo_locked", 0);
+    std::cout << boost::format("Checking Tx %s") % lo_locked.to_pp_string()
+              << std::endl;
+    UHD_ASSERT_THROW(lo_locked.to_bool());
+  }
+  // Rx check
+  if (std::find(rxSensorNames.begin(), rxSensorNames.end(), "lo_locked") !=
+      rxSensorNames.end())
+  {
+    uhd::sensor_value_t lo_locked = usrp->get_rx_sensor("lo_locked", 0);
+    std::cout << boost::format("Checking Rx %s") % lo_locked.to_pp_string()
+              << std::endl;
+    UHD_ASSERT_THROW(lo_locked.to_bool());
+  }
+}
+
+/*
  * Worker function to handle transmit operation
  */
 void transmit(LinearFMWaveform &waveform,
@@ -47,8 +75,6 @@ void transmit(LinearFMWaveform &waveform,
     txMeta.time_spec = uhd::time_spec_t(sendTime);
     nTxSamps = txStream->send(buffs, nSampsPulse, txMeta, timeout);
     sendTime += pri;
-    
-    
   }
 }
 
@@ -113,30 +139,10 @@ int main(int argc, char *argv[])
   LinearFMWaveform lfm(bandwidth, pulsewidth, prf, sampleRate);
   auto waveform = lfm.generateWaveform();
 
-  /*
-   * Check for ref & LO lock
-   */
-  std::vector<std::string> txSensorNames, rxSensorNames;
-  txSensorNames = usrp->get_tx_sensor_names(0);
-  rxSensorNames = usrp->get_rx_sensor_names(0);
-  // Tx check
-  if (std::find(txSensorNames.begin(), txSensorNames.end(), "lo_locked") !=
-      txSensorNames.end())
-  {
-    uhd::sensor_value_t lo_locked = usrp->get_tx_sensor("lo_locked", 0);
-    std::cout << boost::format("Checking Tx %s") % lo_locked.to_pp_string()
-              << std::endl;
-    UHD_ASSERT_THROW(lo_locked.to_bool());
-  }
-  // Rx check
-  if (std::find(rxSensorNames.begin(), rxSensorNames.end(), "lo_locked") !=
-      rxSensorNames.end())
-  {
-    uhd::sensor_value_t lo_locked = usrp->get_rx_sensor("lo_locked", 0);
-    std::cout << boost::format("Checking Rx %s") % lo_locked.to_pp_string()
-              << std::endl;
-    UHD_ASSERT_THROW(lo_locked.to_bool());
-  }
+  // Check LO lock before continuing
+  checkLoLock(usrp);
+  
+  
 
   /*
    * Create Streamer objects
@@ -150,9 +156,18 @@ int main(int argc, char *argv[])
    * Initialize buffers
    */
   // Initialize the Tx buffer(s)
-  // FIXME: For now, assuming 1 tx channel
-  auto txBuffs = waveform;
-  std::vector<std::complex<float> *> txBuffPtrs(1, &txBuffs.front());
+  const size_t nSampsTxBuff = waveform.size();
+  int nTxChan = usrp->get_tx_num_channels();
+  std::vector<std::vector<std::complex<float>>>
+      txBuffs(nTxChan, std::vector<std::complex<float>>(nSampsTxBuff));
+  // TODO: Only using one waveform and one channel for now
+  for (int i = 0; i < nSampsTxBuff; i++)
+    txBuffs[0][i] = waveform[i];
+  std::vector<std::complex<float> *> txBuffPtrs;
+  for (size_t i = 0; i < nTxChan; i++)
+    txBuffPtrs.push_back(&txBuffs[i].front());
+
+  // std::vector<std::complex<float> *> txBuffPtrs(nTxChan, &txBuffs.front());
   // Initialize the Rx buffer(s)
   const size_t nSampsRxBuff = rxStream->get_max_num_samps();
   int nRxChan = usrp->get_rx_num_channels();
