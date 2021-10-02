@@ -20,27 +20,60 @@ namespace po = boost::program_options;
 
 /*
  * Worker function to handle transmit operation
- * (Gets its own thread in main())
  */
 void transmit(LinearFMWaveform &waveform,
               std::vector<std::complex<float> *> buffs,
-              uhd::tx_streamer::sptr txStream)
+              uhd::tx_streamer::sptr txStream,
+              double startTime = 0.1)
 {
+  // Pulse repetition interval
   double pri = 1 / waveform.prf;
-  double sendTime = 0.1;
+  // Time spec for the first packet
+  double sendTime = startTime;
+  // Timeout for send(). If this is reached on transmit, we have done something wrong
   double timeout = 0.1 + pri;
+  // Set up the Tx metadata
   uhd::tx_metadata_t txMeta;
   txMeta.has_time_spec = true;
   txMeta.time_spec = uhd::time_spec_t(sendTime);
+  // Every call to send() will transmit an entire PRI
+  // TODO: Make this bursty so we don't have to explicitly transmit zeros
   int nSampsPulse = std::round(waveform.sampleRate / waveform.prf);
-  size_t nTxSamps = txStream->send(buffs, nSampsPulse, txMeta, timeout);
-  while (!stopSignalCalled)
+  size_t nTxSamps;
+  // TODO: Add a time condition to tell the function when to exit
+  while (not stopSignalCalled)
   {
-    sendTime += pri;
     txMeta.has_time_spec = true;
     txMeta.time_spec = uhd::time_spec_t(sendTime);
     nTxSamps = txStream->send(buffs, nSampsPulse, txMeta, timeout);
+    sendTime += pri;
+    
+    
   }
+}
+
+/*
+ * Worker function to handle receive operation
+ */
+void receive(std::vector<std::complex<float> *> buffs,
+             uhd::rx_streamer::sptr rxStream,
+             double startTime = 0.1)
+{
+  // Send a stream command to tell the rx stream when to start
+  uhd::stream_cmd_t streamCmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
+  streamCmd.stream_now = false;
+  streamCmd.time_spec = uhd::time_spec_t(startTime);
+  rxStream->issue_stream_cmd(streamCmd);
+
+  // Create metadata object
+  uhd::rx_metadata_t rxMeta;
+  const size_t nSampsRxBuff = rxStream->get_max_num_samps();
+  // Timeout value for recv()
+  // TODO: Make this a parameter
+  double timeout = 0.1;
+  // TODO: Add a time condition to tell the function when to exit
+  while (not stopSignalCalled)
+    size_t nRxSamps = rxStream->recv(buffs, nSampsRxBuff, rxMeta, timeout);
 }
 
 // NOTE: UHD_SAFE_MAIN is just a macro that places a catch-all around the
@@ -74,9 +107,11 @@ int main(int argc, char *argv[])
    */
   float bandwidth = 20e6;
   float pulsewidth = 10e-6;
+  int nSampsPulse = std::round(sampleRate * pulsewidth);
   double prf = 10e3;
   double pri = 1 / prf;
   LinearFMWaveform lfm(bandwidth, pulsewidth, prf, sampleRate);
+  auto waveform = lfm.generateWaveform();
 
   /*
    * Check for ref & LO lock
@@ -103,20 +138,44 @@ int main(int argc, char *argv[])
     UHD_ASSERT_THROW(lo_locked.to_bool());
   }
 
+  /*
+   * Create Streamer objects
+   */
   uhd::stream_args_t streamArgs("fc32", "sc16");
   streamArgs.channels = txChanNums;
   uhd::tx_streamer::sptr txStream = usrp->get_tx_stream(streamArgs);
-  bool repeat = true;
-  auto waveform = lfm.generateWaveform();
-  int nSampsPulse = std::round(sampleRate * pulsewidth);
-  auto buff = waveform;
-  // Create a vector of zeros
-  std::vector<std::complex<float> *> buffs(1, &buff.front());
-  usrp->set_time_now(0.0);
-  boost::thread_group txThread;
-  txThread.create_thread(std::bind(&transmit, lfm, buffs, txStream));
+  uhd::rx_streamer::sptr rxStream = usrp->get_rx_stream(streamArgs);
 
+  /*
+   * Initialize buffers
+   */
+  // Initialize the Tx buffer(s)
+  // FIXME: For now, assuming 1 tx channel
+  auto txBuffs = waveform;
+  std::vector<std::complex<float> *> txBuffPtrs(1, &txBuffs.front());
+  // Initialize the Rx buffer(s)
+  const size_t nSampsRxBuff = rxStream->get_max_num_samps();
+  int nRxChan = usrp->get_rx_num_channels();
+  std::vector<std::vector<std::complex<float>>>
+      rxBuffs(nRxChan, std::vector<std::complex<float>>(nSampsRxBuff));
+  // Create a vector of pointers to each of the channel buffers
+  std::vector<std::complex<float> *> rxBuffPtrs;
+  for (size_t i = 0; i < nRxChan; i++)
+    rxBuffPtrs.push_back(&rxBuffs[i].front());
+
+  /*
+   * Set up the threads
+   */
+  // Reset the USRP time and decide on a start time for Tx and Rx
+  double startTime = 0.1;
+  usrp->set_time_now(0.0);
+  boost::thread_group txThread, rxThread;
+  txThread.create_thread(std::bind(&transmit, lfm, txBuffPtrs, txStream, startTime));
+  rxThread.create_thread(std::bind(&receive, rxBuffPtrs, rxStream, startTime));
+
+  // Wait for threads to get back
   txThread.join_all();
+  rxThread.join_all();
 
   std::cout << "Done!" << std::endl;
   return EXIT_SUCCESS;
