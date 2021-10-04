@@ -11,7 +11,6 @@
 #include "LinearFMWaveform.h"
 
 #define VERBOSE true
-#define STOP_TIME 5
 /***********************************************************************
  * Signal handlers
  **********************************************************************/
@@ -50,7 +49,8 @@ void checkLoLock(uhd::usrp::multi_usrp::sptr usrp) {
  */
 void transmit(LinearFMWaveform &waveform,
               std::vector<std::complex<float> *> buffs,
-              uhd::tx_streamer::sptr txStream, double startTime = 0.1) {
+              uhd::tx_streamer::sptr txStream, double startTime = 0.1,
+              int nSampsToTransmit = 0) {
   // Pulse repetition interval
   double pri = 1 / waveform.prf;
   // Time spec for the first packet
@@ -68,10 +68,12 @@ void transmit(LinearFMWaveform &waveform,
   // TODO: Make this bursty so we don't have to explicitly transmit zeros
   int nSampsPulse = std::round(waveform.sampleRate / waveform.prf);
   size_t nSampsTx;
-  // TODO: Add a time condition to tell the function when to exit
-  while (not stopSignalCalled) {
+  int nSampsTotal = 0;
+  while (not stopSignalCalled and
+         (nSampsTotal < nSampsToTransmit or nSampsToTransmit == 0)) {
     nSampsTx = txStream->send(buffs, nSampsPulse, txMeta, timeout);
     // Update metadata
+    nSampsTotal += nSampsTx;
     sendTime += pri;
     txMeta.has_time_spec = true;
     txMeta.time_spec = uhd::time_spec_t(sendTime);
@@ -100,9 +102,8 @@ void receive(std::vector<std::complex<float> *> buffs,
   // Create metadata object
   uhd::rx_metadata_t rxMeta;
   const size_t nSampsRxBuff = rxStream->get_max_num_samps();
-  // Timeout value for recv()
-  // TODO: Make this a parameter
-  double timeout = 0.1;
+  // Timeout value for first call to recv()
+  double timeout = 0.1 + startTime;
   int nSampsTotal = 0;
   // Create an ofstream object for the data file
   // (use shared_ptr because ofstream is non-copyable)
@@ -113,6 +114,8 @@ void receive(std::vector<std::complex<float> *> buffs,
   while (not stopSignalCalled and
          (nSampsTotal < nSampsRequested or nSampsRequested == 0)) {
     size_t nSampsRx = rxStream->recv(buffs, nSampsRxBuff, rxMeta, timeout);
+    // After the initial start, we can make a smaller timeout
+    startTime = 0.1;
     // Check for errors
     if (rxMeta.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
       std::cout << boost::format("Timeout while streaming") << std::endl;
@@ -123,17 +126,16 @@ void receive(std::vector<std::complex<float> *> buffs,
           str(boost::format("Receiver error %s") % rxMeta.strerror()));
     }
     // TODO: Repeat this operation for every buffer/channel
-    outfile->write((const char *)buffs[0], nSampsRx * sizeof(std::complex<float>));
+    outfile->write((const char *)buffs[0],
+                   nSampsRx * sizeof(std::complex<float>));
     // Update the sample count
     nSampsTotal += nSampsRx;
-
-    // TODO: Write to file
   }
   // Shut down the receiver
   streamCmd.stream_mode = uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS;
   rxStream->issue_stream_cmd(streamCmd);
 
-  // TODO: Close files
+  // Close files
   outfile->close();
 }
 
@@ -163,6 +165,9 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   usrp->set_tx_gain(txGain);
   usrp->set_rx_gain(rxGain);
 
+  // Check LO lock before continuing
+  checkLoLock(usrp);
+
   /*
    * Waveform setup
    */
@@ -173,9 +178,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   double pri = 1 / prf;
   LinearFMWaveform lfm(bandwidth, pulsewidth, prf, sampleRate);
   auto waveform = lfm.generateWaveform();
-
-  // Check LO lock before continuing
-  checkLoLock(usrp);
 
   /*
    * Create Streamer objects
@@ -212,19 +214,22 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
    * Set up the threads
    */
   // Reset the USRP time and decide on a start time for Tx and Rx
-  double startTime = 0.1;
-  int nRxSamps = sampleRate * 3;
+  double startTime = 1;
+  int nSamps = sampleRate*1;
+  // Rx output is delayed by a constant (SDR-dependent) number of samples. To
+  // get the correct rx length, sample an additional nRxOffsetSamps samples 
+  int nRxOffsetSamps = 165;
   usrp->set_time_now(0.0);
   boost::thread_group txThread, rxThread;
   txThread.create_thread(
-      std::bind(&transmit, lfm, txBuffPtrs, txStream, startTime));
+      std::bind(&transmit, lfm, txBuffPtrs, txStream, startTime, nSamps));
   rxThread.create_thread(
-      std::bind(&receive, rxBuffPtrs, rxStream, startTime, nRxSamps));
+      std::bind(&receive, rxBuffPtrs, rxStream, startTime, nSamps+nRxOffsetSamps));
 
   // Wait for threads to get back
   txThread.join_all();
   rxThread.join_all();
 
-  std::cout << "Done!" << std::endl;
+  std::cout << boost::format("Successfully processed %d samples") % nSamps << std::endl;
   return EXIT_SUCCESS;
 }
