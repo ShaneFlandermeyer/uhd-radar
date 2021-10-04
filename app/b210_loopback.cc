@@ -2,6 +2,8 @@
 #include <boost/thread.hpp>
 #include <chrono>
 #include <csignal>
+#include <fstream>
+#include <iostream>
 #include <thread>
 #include <uhd/usrp/multi_usrp.hpp>
 #include <uhd/utils/safe_main.hpp>
@@ -65,10 +67,10 @@ void transmit(LinearFMWaveform &waveform,
   // Every call to send() will transmit an entire PRI
   // TODO: Make this bursty so we don't have to explicitly transmit zeros
   int nSampsPulse = std::round(waveform.sampleRate / waveform.prf);
-  size_t nTxSamps;
+  size_t nSampsTx;
   // TODO: Add a time condition to tell the function when to exit
   while (not stopSignalCalled) {
-    nTxSamps = txStream->send(buffs, nSampsPulse, txMeta, timeout);
+    nSampsTx = txStream->send(buffs, nSampsPulse, txMeta, timeout);
     // Update metadata
     sendTime += pri;
     txMeta.has_time_spec = true;
@@ -77,7 +79,7 @@ void transmit(LinearFMWaveform &waveform,
   }
   // Send a mini EOB packet
   txMeta.end_of_burst = true;
-  txStream->send("",0,txMeta);
+  txStream->send("", 0, txMeta);
 }
 
 /*
@@ -95,7 +97,6 @@ void receive(std::vector<std::complex<float> *> buffs,
   streamCmd.stream_now = false;
   streamCmd.time_spec = uhd::time_spec_t(startTime);
   rxStream->issue_stream_cmd(streamCmd);
-
   // Create metadata object
   uhd::rx_metadata_t rxMeta;
   const size_t nSampsRxBuff = rxStream->get_max_num_samps();
@@ -103,7 +104,12 @@ void receive(std::vector<std::complex<float> *> buffs,
   // TODO: Make this a parameter
   double timeout = 0.1;
   int nSampsTotal = 0;
-  // TODO: Add a time condition to tell the function when to exit
+  // Create an ofstream object for the data file
+  // (use shared_ptr because ofstream is non-copyable)
+  std::string filename = "/home/shane/test.dat";
+  std::shared_ptr<std::ofstream> outfile(
+      new std::ofstream(filename.c_str(), std::ofstream::binary));
+  // Main receive loop
   while (not stopSignalCalled and
          (nSampsTotal < nSampsRequested or nSampsRequested == 0)) {
     size_t nSampsRx = rxStream->recv(buffs, nSampsRxBuff, rxMeta, timeout);
@@ -116,6 +122,8 @@ void receive(std::vector<std::complex<float> *> buffs,
       throw std::runtime_error(
           str(boost::format("Receiver error %s") % rxMeta.strerror()));
     }
+    // TODO: Repeat this operation for every buffer/channel
+    outfile->write((const char *)buffs[0], nSampsRx * sizeof(std::complex<float>));
     // Update the sample count
     nSampsTotal += nSampsRx;
 
@@ -126,6 +134,7 @@ void receive(std::vector<std::complex<float> *> buffs,
   rxStream->issue_stream_cmd(streamCmd);
 
   // TODO: Close files
+  outfile->close();
 }
 
 /**************************************************************************
