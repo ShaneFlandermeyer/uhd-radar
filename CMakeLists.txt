@@ -30,20 +30,6 @@ link_directories(${Boost_LIBRARY_DIRS})
 ########################################################################
 # Add subdirectories
 ########################################################################
-message(STATUS "Building Flatbuffers")
-# Initialize Flatbuffers submodule if unititialized
-set(FLATBUFFERS_INCLUDE_DIR 
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/flatbuffers/include
-  CACHE PATH "flatbuffers include directory")
-if (NOT IS_DIRECTORY ${FLATBUFFERS_INCLUDE_DIR})
-    message("Flatbuffers submodule not found! Downloading...")
-    execute_process(COMMAND git submodule update --init -- external/flatbuffers
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-endif(NOT IS_DIRECTORY ${FLATBUFFERS_INCLUDE_DIR})
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/flatbuffers
-        ${CMAKE_CURRENT_BINARY_DIR}/flatbuffers-build
-        EXCLUDE_FROM_ALL)
-
 add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(app)

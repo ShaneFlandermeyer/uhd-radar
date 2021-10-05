@@ -10,6 +10,7 @@
 #include <uhd/utils/safe_main.hpp>
 
 #include "LinearFMWaveform.h"
+#include "sigmf/sigmf.h"
 
 #define VERBOSE true
 /***********************************************************************
