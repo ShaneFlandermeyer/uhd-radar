@@ -4,6 +4,7 @@
 #include <csignal>
 #include <fstream>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <thread>
 #include <uhd/usrp/multi_usrp.hpp>
 #include <uhd/utils/safe_main.hpp>
@@ -215,21 +216,22 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
    */
   // Reset the USRP time and decide on a start time for Tx and Rx
   double startTime = 1;
-  int nSamps = sampleRate*1;
+  int nSamps = sampleRate * 1;
   // Rx output is delayed by a constant (SDR-dependent) number of samples. To
-  // get the correct rx length, sample an additional nRxOffsetSamps samples 
+  // get the correct rx length, sample an additional nRxOffsetSamps samples
   int nRxOffsetSamps = 165;
   usrp->set_time_now(0.0);
   boost::thread_group txThread, rxThread;
   txThread.create_thread(
       std::bind(&transmit, lfm, txBuffPtrs, txStream, startTime, nSamps));
-  rxThread.create_thread(
-      std::bind(&receive, rxBuffPtrs, rxStream, startTime, nSamps+nRxOffsetSamps));
+  rxThread.create_thread(std::bind(&receive, rxBuffPtrs, rxStream, startTime,
+                                   nSamps + nRxOffsetSamps));
 
   // Wait for threads to get back
   txThread.join_all();
   rxThread.join_all();
 
-  std::cout << boost::format("Successfully processed %d samples") % nSamps << std::endl;
+  std::cout << boost::format("Successfully processed %d samples") % nSamps
+            << std::endl;
   return EXIT_SUCCESS;
 }
