@@ -291,7 +291,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   // Set up the threads
 
   // Reset the USRP time and decide on a start time for Tx and Rx
-  double startTime = 1;
+  double startTime = 0.5;
   int nSamps = sampleRate * 1;
   // Rx output is delayed by a constant (SDR-dependent) number of samples. To
   // get the correct rx length, sample an additional nRxOffsetSamps samples
@@ -311,29 +311,38 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
 
   std::cout << boost::format("Successfully processed %d samples") % nSamps
             << std::endl;
-
+            
   // Core global fields
-  // TODO: Add the rest of the fields
+  // Tx
   txMeta.global.access<core::GlobalT>().author =
-      "Shane Flandermeyer shaneflandermeyer@gmail.com";
-  rxMeta.global.access<core::GlobalT>().author =
       "Shane Flandermeyer shaneflandermeyer@gmail.com";
   txMeta.global.access<core::GlobalT>().description =
       "Basic loopback with an NI-2901 SDR";
+  txMeta.global.access<core::GlobalT>().datatype =
+      streamFormatToSigmf(cpuFormat);
+  txMeta.global.access<core::GlobalT>().sample_rate = sampleRate;
+  txMeta.global.access<core::GlobalT>().hw = "NI-2901";
+  txMeta.global.access<core::GlobalT>().version = "1.0.0";
+  // Rx
+  rxMeta.global.access<core::GlobalT>().author =
+      "Shane Flandermeyer shaneflandermeyer@gmail.com";
   rxMeta.global.access<core::GlobalT>().description =
       "Basic loopback with an NI-2901 SDR";
-  // TODO: Automatically determine this from the stream args
-  txMeta.global.access<core::GlobalT>().datatype = streamFormatToSigmf(cpuFormat);
-  rxMeta.global.access<core::GlobalT>().datatype = streamFormatToSigmf(cpuFormat);
+  rxMeta.global.access<core::GlobalT>().datatype =
+      streamFormatToSigmf(cpuFormat);
+  rxMeta.global.access<core::GlobalT>().sample_rate = sampleRate;
+  rxMeta.global.access<core::GlobalT>().hw = "NI-2901";
+  rxMeta.global.access<core::GlobalT>().version = "1.0.0";
+
   // Antenna global fields
   txMeta.global.access<antenna::GlobalT>().gain = txGain;
   rxMeta.global.access<antenna::GlobalT>().gain = rxGain;
+
   // Write the metadata to a file
   // Convert the metadata to json
   nlohmann::json txMetaJson = json(txMeta);
   nlohmann::json rxMetaJson = json(rxMeta);
-
-  // Write to file
+  // Create the full path
   std::ofstream txMetaFile(dataDir + txMetaFilename);
   std::ofstream rxMetaFile(dataDir + rxMetaFilename);
   txMetaFile << std::setw(2) << txMetaJson << std::endl;
