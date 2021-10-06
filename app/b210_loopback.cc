@@ -1,9 +1,14 @@
+#include <sigmf/sigmf.h>
+#include <sigmf/sigmf_antenna_generated.h>
+#include <sigmf/sigmf_core_generated.h>
+
 #include <boost/program_options.hpp>
 #include <boost/thread.hpp>
 #include <chrono>
 #include <csignal>
 #include <fstream>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <thread>
 #include <uhd/usrp/multi_usrp.hpp>
 #include <uhd/utils/safe_main.hpp>
@@ -11,13 +16,22 @@
 #include "LinearFMWaveform.h"
 
 #define VERBOSE true
-/***********************************************************************
+
+/*
+ * Global variables
+ */
+sigmf::SigMF<sigmf::Global<core::DescrT, antenna::DescrT>,
+             sigmf::Capture<core::DescrT>, sigmf::Annotation<core::DescrT>>
+    txMeta;
+sigmf::SigMF<sigmf::Global<core::DescrT, antenna::DescrT>,
+             sigmf::Capture<core::DescrT>, sigmf::Annotation<core::DescrT>>
+    rxMeta;
+
+/*
  * Signal handlers
- **********************************************************************/
+ */
 static bool stopSignalCalled = false;
 void sigIntHandler(int) { stopSignalCalled = true; }
-
-namespace po = boost::program_options;
 
 /*
  * Check for LO lock
@@ -144,9 +158,8 @@ void receive(std::vector<std::complex<float> *> buffs,
  ***********************************************************************/
 int UHD_SAFE_MAIN(int argc, char *argv[]) {
   std::signal(SIGINT, &sigIntHandler);
-  /*
-   * USRP device setup
-   */
+
+  // USRP device setup
   std::string usrpArgs = "";
   double sampleRate = 20e6;
   double centerFreq = 5e9;
@@ -168,9 +181,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   // Check LO lock before continuing
   checkLoLock(usrp);
 
-  /*
-   * Waveform setup
-   */
+  // Waveform setup
   float bandwidth = 20e6;
   float pulsewidth = 10e-6;
   int nSampsPulse = std::round(sampleRate * pulsewidth);
@@ -179,17 +190,12 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   LinearFMWaveform lfm(bandwidth, pulsewidth, prf, sampleRate);
   auto waveform = lfm.generateWaveform();
 
-  /*
-   * Create Streamer objects
-   */
+  // Create stream objects
   uhd::stream_args_t streamArgs("fc32", "sc16");
   streamArgs.channels = txChanNums;
   uhd::tx_streamer::sptr txStream = usrp->get_tx_stream(streamArgs);
   uhd::rx_streamer::sptr rxStream = usrp->get_rx_stream(streamArgs);
 
-  /*
-   * Initialize buffers
-   */
   // Initialize the Tx buffer(s)
   const size_t nSampsTxBuff = waveform.size();
   int nTxChan = usrp->get_tx_num_channels();
@@ -210,9 +216,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   for (size_t i = 0; i < nRxChan; i++)
     rxBuffPtrs.push_back(&rxBuffs[i].front());
 
-  /*
-   * Set up the threads
-   */
+  // Set up the threads
+
   // Reset the USRP time and decide on a start time for Tx and Rx
   double startTime = 1;
   int nSamps = sampleRate * 1;
@@ -230,9 +235,35 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   txThread.join_all();
   rxThread.join_all();
 
-
-
   std::cout << boost::format("Successfully processed %d samples") % nSamps
             << std::endl;
+
+  // Core global fields
+  // TODO: Add the rest of the fields
+  txMeta.global.access<core::GlobalT>().author = "Shane Flandermeyer shaneflandermeyer@gmail.com";
+  rxMeta.global.access<core::GlobalT>().author = "Shane Flandermeyer shaneflandermeyer@gmail.com";
+  txMeta.global.access<core::GlobalT>().description =
+      "Basic loopback with an NI-2901 SDR";
+  rxMeta.global.access<core::GlobalT>().description =
+      "Basic loopback with an NI-2901 SDR";
+  txMeta.global.access<core::GlobalT>().datatype = "cf32_le";
+  rxMeta.global.access<core::GlobalT>().datatype = "cf32_le";
+  // Antenna global fields
+  txMeta.global.access<antenna::GlobalT>().gain = txGain;
+  rxMeta.global.access<antenna::GlobalT>().gain = rxGain;
+
+
+  // Write the metadata to a file
+  // Convert the metadata to json
+  nlohmann::json txMetaJson = json(txMeta);
+  nlohmann::json rxMetaJson = json(rxMeta);
+  // Write to file
+  std::ofstream txMetaFile("data/b210-loopback-tx.sigmf-meta");
+  std::ofstream rxMetaFile("data/b210-loopback-rx.sigmf-meta");
+  txMetaFile << std::setw(2) << txMetaJson << std::endl;
+  rxMetaFile << std::setw(2) << rxMetaJson << std::endl;
+  txMetaFile.close();
+  rxMetaFile.close();
+
   return EXIT_SUCCESS;
 }
