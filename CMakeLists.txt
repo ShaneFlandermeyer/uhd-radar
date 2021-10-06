@@ -5,7 +5,6 @@ project(UHD_RADAR VERSION 1.0 LANGUAGES CXX)
 # Configure Compiler
 ########################################################################
 set(CMAKE_CXX_STANDARD 14)
-
 # Set up the build environment
 # Use the shared UHD libs
 option(UHD_USE_STATIC_LIBS OFF)
@@ -26,6 +25,25 @@ include_directories(
   ${UHD_INCLUDE_DIRS}
 )
 link_directories(${Boost_LIBRARY_DIRS})
+
+########################################################################
+# Set up flatbuffers
+########################################################################
+# Set up flatbuffers
+message(STATUS "Building flatbuffers")
+set(FLATBUFFERS_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/flatbuffers/include")
+# Initialize Flatbuffers submodule if unititialized
+set(FLATBUFFERS_INCLUDE_DIR 
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/flatbuffers/include
+  CACHE PATH "flatbuffers include directory")
+if (NOT IS_DIRECTORY ${FLATBUFFERS_INCLUDE_DIR})
+    message("Flatbuffers submodule not found! Downloading...")
+    execute_process(COMMAND git submodule update --init -- external/flatbuffers
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+endif(NOT IS_DIRECTORY ${FLATBUFFERS_INCLUDE_DIR})
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/flatbuffers
+        ${CMAKE_CURRENT_BINARY_DIR}/flatbuffers-build
+        EXCLUDE_FROM_ALL)
 
 ########################################################################
 # Add subdirectories

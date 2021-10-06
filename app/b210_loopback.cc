@@ -4,13 +4,11 @@
 #include <csignal>
 #include <fstream>
 #include <iostream>
-#include <nlohmann/json.hpp>
 #include <thread>
 #include <uhd/usrp/multi_usrp.hpp>
 #include <uhd/utils/safe_main.hpp>
 
 #include "LinearFMWaveform.h"
-#include "sigmf/sigmf.h"
 
 #define VERBOSE true
 /***********************************************************************
@@ -231,6 +229,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   // Wait for threads to get back
   txThread.join_all();
   rxThread.join_all();
+
+
 
   std::cout << boost::format("Successfully processed %d samples") % nSamps
             << std::endl;
