@@ -1,3 +1,4 @@
+#include <bit>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 #include <boost/thread.hpp>
@@ -91,7 +92,7 @@ void transmit(LinearFMWaveform &waveform,
   int nSampsPulse = std::round(waveform.sampleRate / waveform.prf);
   size_t nSampsTx;
   int nSampsTotal = 0;
-
+  // Transmission loop
   while (not stopSignalCalled and
          (nSampsTotal < nSampsToTransmit or nSampsToTransmit == 0)) {
     nSampsTx = txStream->send(buffs, nSampsPulse, txMeta, timeout);
@@ -170,6 +171,34 @@ void receive(std::vector<std::complex<float> *> buffs,
   outfile->close();
 }
 
+/*
+ * Converts a UHD stream arg format (e.g., fc32) to a sigmf data set format
+ */
+// TODO: Move this function to some sigmf-utils type folder
+std::string streamFormatToSigmf(const std::string &format) {
+  std::string type;
+  if (format == "fc32") {
+    type = "cf32";
+  }
+
+  // Determine endianness
+  std::string endianness;
+  switch (std::endian::native) {
+    case std::endian::little:
+      // little-endian
+      endianness = "le";
+      break;
+    case std::endian::big:
+      // big-endian
+      endianness = "be";
+      break;
+    default:
+      // Mixed-endian
+      endianness = "me";
+  }
+  return type + "_" + endianness;
+}
+
 /**************************************************************************
  * Main function
  ***********************************************************************/
@@ -191,120 +220,126 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
     // If a data directory doesn't exist, make it
     boost::filesystem::path dir(dataDir);
     if (!(boost::filesystem::exists(dir))) {
-      std::cout << "Data directory doesn't exist...creating" << std::endl;
+      if (VERBOSE)
+        std::cout << "Data directory doesn't exist...creating" << std::endl;
 
-      if (boost::filesystem::create_directories(dir))
-        std::cout << "Successfully created data directory!" << std::endl;
+      if (boost::filesystem::create_directories(dir)) {
+        if (VERBOSE)
+          std::cout << "Successfully created data directory!" << std::endl;
+      }
     }
   }
-    // USRP device setup
-    std::string usrpArgs = "";
-    double sampleRate = 20e6;
-    double centerFreq = 5e9;
-    double txGain = 50;
-    double rxGain = 50;
-    std::vector<size_t> txChanNums(1, 0);
+  // USRP device setup
+  std::string usrpArgs = "";
+  double sampleRate = 20e6;
+  double centerFreq = 5e9;
+  double txGain = 50;
+  double rxGain = 50;
+  std::vector<size_t> txChanNums(1, 0);
 
-    uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(usrpArgs);
-    // Set the sample rate
-    usrp->set_tx_rate(sampleRate);
-    usrp->set_rx_rate(sampleRate);
-    // Set center frequency
-    usrp->set_tx_freq(centerFreq);
-    usrp->set_rx_freq(centerFreq);
-    // Set RF gain
-    usrp->set_tx_gain(txGain);
-    usrp->set_rx_gain(rxGain);
+  uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(usrpArgs);
+  // Set the sample rate
+  usrp->set_tx_rate(sampleRate);
+  usrp->set_rx_rate(sampleRate);
+  // Set center frequency
+  usrp->set_tx_freq(centerFreq);
+  usrp->set_rx_freq(centerFreq);
+  // Set RF gain
+  usrp->set_tx_gain(txGain);
+  usrp->set_rx_gain(rxGain);
 
-    // Check LO lock before continuing
-    checkLoLock(usrp);
+  // Check LO lock before continuing
+  checkLoLock(usrp);
 
-    // Waveform setup
-    float bandwidth = 20e6;
-    float pulsewidth = 10e-6;
-    int nSampsPulse = std::round(sampleRate * pulsewidth);
-    double prf = 10e3;
-    double pri = 1 / prf;
-    LinearFMWaveform lfm(bandwidth, pulsewidth, prf, sampleRate);
-    auto waveform = lfm.generateWaveform();
+  // Waveform setup
+  float bandwidth = 20e6;
+  float pulsewidth = 10e-6;
+  int nSampsPulse = std::round(sampleRate * pulsewidth);
+  double prf = 10e3;
+  double pri = 1 / prf;
+  LinearFMWaveform lfm(bandwidth, pulsewidth, prf, sampleRate);
+  auto waveform = lfm.generateWaveform();
 
-    // Create stream objects
-    uhd::stream_args_t streamArgs("fc32", "sc16");
-    streamArgs.channels = txChanNums;
-    uhd::tx_streamer::sptr txStream = usrp->get_tx_stream(streamArgs);
-    uhd::rx_streamer::sptr rxStream = usrp->get_rx_stream(streamArgs);
+  // Create stream objects
+  std::string cpuFormat = "fc32";
+  std::string otwFormat = "sc16";
+  uhd::stream_args_t streamArgs(cpuFormat, otwFormat);
+  streamArgs.channels = txChanNums;
+  uhd::tx_streamer::sptr txStream = usrp->get_tx_stream(streamArgs);
+  uhd::rx_streamer::sptr rxStream = usrp->get_rx_stream(streamArgs);
 
-    // Initialize the Tx buffer(s)
-    const size_t nSampsTxBuff = waveform.size();
-    int nTxChan = usrp->get_tx_num_channels();
-    std::vector<std::vector<std::complex<float>>> txBuffs(
-        nTxChan, std::vector<std::complex<float>>(nSampsTxBuff));
-    // TODO: Only using one waveform and one channel for now
-    for (int i = 0; i < nSampsTxBuff; i++) txBuffs[0][i] = waveform[i];
-    std::vector<std::complex<float> *> txBuffPtrs;
-    for (size_t i = 0; i < nTxChan; i++)
-      txBuffPtrs.push_back(&txBuffs[i].front());
-    // Initialize the Rx buffer(s)
-    const size_t nSampsRxBuff = rxStream->get_max_num_samps();
-    int nRxChan = usrp->get_rx_num_channels();
-    std::vector<std::vector<std::complex<float>>> rxBuffs(
-        nRxChan, std::vector<std::complex<float>>(nSampsRxBuff));
-    // Create a vector of pointers to each of the channel buffers
-    std::vector<std::complex<float> *> rxBuffPtrs;
-    for (size_t i = 0; i < nRxChan; i++)
-      rxBuffPtrs.push_back(&rxBuffs[i].front());
+  // Initialize the Tx buffer(s)
+  const size_t nSampsTxBuff = waveform.size();
+  int nTxChan = usrp->get_tx_num_channels();
+  std::vector<std::vector<std::complex<float>>> txBuffs(
+      nTxChan, std::vector<std::complex<float>>(nSampsTxBuff));
+  // TODO: Only using one waveform and one channel for now
+  for (int i = 0; i < nSampsTxBuff; i++) txBuffs[0][i] = waveform[i];
+  std::vector<std::complex<float> *> txBuffPtrs;
+  for (size_t i = 0; i < nTxChan; i++)
+    txBuffPtrs.push_back(&txBuffs[i].front());
+  // Initialize the Rx buffer(s)
+  const size_t nSampsRxBuff = rxStream->get_max_num_samps();
+  int nRxChan = usrp->get_rx_num_channels();
+  std::vector<std::vector<std::complex<float>>> rxBuffs(
+      nRxChan, std::vector<std::complex<float>>(nSampsRxBuff));
+  // Create a vector of pointers to each of the channel buffers
+  std::vector<std::complex<float> *> rxBuffPtrs;
+  for (size_t i = 0; i < nRxChan; i++)
+    rxBuffPtrs.push_back(&rxBuffs[i].front());
 
-    // Set up the threads
+  // Set up the threads
 
-    // Reset the USRP time and decide on a start time for Tx and Rx
-    double startTime = 1;
-    int nSamps = sampleRate * 1;
-    // Rx output is delayed by a constant (SDR-dependent) number of samples. To
-    // get the correct rx length, sample an additional nRxOffsetSamps samples
-    int nRxOffsetSamps = 165;
-    usrp->set_time_now(0.0);
-    boost::thread_group txThread, rxThread;
-    txThread.create_thread(std::bind(&transmit, lfm, txBuffPtrs, txStream,
-                                     startTime, nSamps,
-                                     dataDir + txDataFilename));
-    rxThread.create_thread(std::bind(&receive, rxBuffPtrs, rxStream, startTime,
-                                     nSamps + nRxOffsetSamps,
-                                     dataDir + rxDataFilename));
+  // Reset the USRP time and decide on a start time for Tx and Rx
+  double startTime = 1;
+  int nSamps = sampleRate * 1;
+  // Rx output is delayed by a constant (SDR-dependent) number of samples. To
+  // get the correct rx length, sample an additional nRxOffsetSamps samples
+  int nRxOffsetSamps = 165;
+  usrp->set_time_now(0.0);
+  boost::thread_group txThread, rxThread;
+  txThread.create_thread(std::bind(&transmit, lfm, txBuffPtrs, txStream,
+                                   startTime, nSamps,
+                                   dataDir + txDataFilename));
+  rxThread.create_thread(std::bind(&receive, rxBuffPtrs, rxStream, startTime,
+                                   nSamps + nRxOffsetSamps,
+                                   dataDir + rxDataFilename));
 
-    // Wait for threads to get back
-    txThread.join_all();
-    rxThread.join_all();
+  // Wait for threads to get back
+  txThread.join_all();
+  rxThread.join_all();
 
-    std::cout << boost::format("Successfully processed %d samples") % nSamps
-              << std::endl;
+  std::cout << boost::format("Successfully processed %d samples") % nSamps
+            << std::endl;
 
-    // Core global fields
-    // TODO: Add the rest of the fields
-    txMeta.global.access<core::GlobalT>().author =
-        "Shane Flandermeyer shaneflandermeyer@gmail.com";
-    rxMeta.global.access<core::GlobalT>().author =
-        "Shane Flandermeyer shaneflandermeyer@gmail.com";
-    txMeta.global.access<core::GlobalT>().description =
-        "Basic loopback with an NI-2901 SDR";
-    rxMeta.global.access<core::GlobalT>().description =
-        "Basic loopback with an NI-2901 SDR";
-    txMeta.global.access<core::GlobalT>().datatype = "cf32_le";
-    rxMeta.global.access<core::GlobalT>().datatype = "cf32_le";
-    // Antenna global fields
-    txMeta.global.access<antenna::GlobalT>().gain = txGain;
-    rxMeta.global.access<antenna::GlobalT>().gain = rxGain;
-    // Write the metadata to a file
-    // Convert the metadata to json
-    nlohmann::json txMetaJson = json(txMeta);
-    nlohmann::json rxMetaJson = json(rxMeta);
+  // Core global fields
+  // TODO: Add the rest of the fields
+  txMeta.global.access<core::GlobalT>().author =
+      "Shane Flandermeyer shaneflandermeyer@gmail.com";
+  rxMeta.global.access<core::GlobalT>().author =
+      "Shane Flandermeyer shaneflandermeyer@gmail.com";
+  txMeta.global.access<core::GlobalT>().description =
+      "Basic loopback with an NI-2901 SDR";
+  rxMeta.global.access<core::GlobalT>().description =
+      "Basic loopback with an NI-2901 SDR";
+  // TODO: Automatically determine this from the stream args
+  txMeta.global.access<core::GlobalT>().datatype = streamFormatToSigmf(cpuFormat);
+  rxMeta.global.access<core::GlobalT>().datatype = streamFormatToSigmf(cpuFormat);
+  // Antenna global fields
+  txMeta.global.access<antenna::GlobalT>().gain = txGain;
+  rxMeta.global.access<antenna::GlobalT>().gain = rxGain;
+  // Write the metadata to a file
+  // Convert the metadata to json
+  nlohmann::json txMetaJson = json(txMeta);
+  nlohmann::json rxMetaJson = json(rxMeta);
 
-    // Write to file
-    std::ofstream txMetaFile(dataDir + txMetaFilename);
-    std::ofstream rxMetaFile(dataDir + rxMetaFilename);
-    txMetaFile << std::setw(2) << txMetaJson << std::endl;
-    rxMetaFile << std::setw(2) << rxMetaJson << std::endl;
-    txMetaFile.close();
-    rxMetaFile.close();
+  // Write to file
+  std::ofstream txMetaFile(dataDir + txMetaFilename);
+  std::ofstream rxMetaFile(dataDir + rxMetaFilename);
+  txMetaFile << std::setw(2) << txMetaJson << std::endl;
+  rxMetaFile << std::setw(2) << rxMetaJson << std::endl;
+  txMetaFile.close();
+  rxMetaFile.close();
 
-    return EXIT_SUCCESS;
-  }
+  return EXIT_SUCCESS;
+}

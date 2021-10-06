@@ -4,7 +4,7 @@ project(UHD_RADAR VERSION 1.0 LANGUAGES CXX)
 ########################################################################
 # Configure Compiler
 ########################################################################
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 20)
 # Set up the build environment
 # Use the shared UHD libs
 option(UHD_USE_STATIC_LIBS OFF)
