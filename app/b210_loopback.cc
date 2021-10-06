@@ -1,14 +1,14 @@
-#include <sigmf/sigmf.h>
-#include <sigmf/sigmf_antenna_generated.h>
-#include <sigmf/sigmf_core_generated.h>
+#include "sigmf.h"
+#include "sigmf_core_generated.h"
+#include "sigmf_antenna_generated.h"
 
 #include <boost/program_options.hpp>
 #include <boost/thread.hpp>
+#include <boost/filesystem.hpp>
 #include <chrono>
 #include <csignal>
 #include <fstream>
 #include <iostream>
-#include <nlohmann/json.hpp>
 #include <thread>
 #include <uhd/usrp/multi_usrp.hpp>
 #include <uhd/utils/safe_main.hpp>
@@ -121,6 +121,7 @@ void receive(std::vector<std::complex<float> *> buffs,
   int nSampsTotal = 0;
   // Create an ofstream object for the data file
   // (use shared_ptr because ofstream is non-copyable)
+  // TODO: Don't hard code this path
   std::string filename = "/home/shane/test.dat";
   std::shared_ptr<std::ofstream> outfile(
       new std::ofstream(filename.c_str(), std::ofstream::binary));
@@ -251,12 +252,18 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   // Antenna global fields
   txMeta.global.access<antenna::GlobalT>().gain = txGain;
   rxMeta.global.access<antenna::GlobalT>().gain = rxGain;
-
-
   // Write the metadata to a file
   // Convert the metadata to json
   nlohmann::json txMetaJson = json(txMeta);
   nlohmann::json rxMetaJson = json(rxMeta);
+  // If a data directory doesn't exist, make it
+  boost::filesystem::path dir("data");
+  if (!(boost::filesystem::exists(dir))) {
+    std::cout << "Data directory doesn't exist...creating" << std::endl;
+
+    if (boost::filesystem::create_directories(dir))
+      std::cout << "Successfully created data directory!" << std::endl;
+  }
   // Write to file
   std::ofstream txMetaFile("data/b210-loopback-tx.sigmf-meta");
   std::ofstream rxMetaFile("data/b210-loopback-rx.sigmf-meta");

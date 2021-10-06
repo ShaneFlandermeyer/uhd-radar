@@ -13,5 +13,8 @@ target_link_libraries(uhd-radar libsigmf)
 target_include_directories(uhd-radar
   PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
   PUBLIC $<INSTALL_INTERFACE:include>
-  PRIVATE ${CMAKE_BINARY_DIR}/include
 )
+
+target_include_directories(uhd-radar INTERFACE
+    $<BUILD_INTERFACE:${JSON_INCLUDE_DIR}>
+  )
