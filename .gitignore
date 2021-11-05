@@ -2,3 +2,4 @@
 *build/*
 *.asv
 *.dat
+*data/*
