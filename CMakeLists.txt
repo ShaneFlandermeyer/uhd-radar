@@ -1,5 +1,19 @@
 cmake_minimum_required(VERSION 3.16)
-project(UHD_RADAR VERSION 1.0 LANGUAGES CXX)
+project(UHD_RADAR VERSION 0.1 LANGUAGES CXX)
+
+# Require out-of-source builds
+file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
+if(EXISTS "${LOC_PATH}")
+  message(
+    FATAL_ERROR
+      "You cannot build in a source directory (or any directory with a CMakeLists.txt file). Please make a build subdirectory. Feel free to remove CMakeCache.txt and CMakeFiles."
+  )
+endif()
+
+# ##############################################################################
+# Build options
+# ##############################################################################
+option(ENABLE_OPENMP "ENABLE_OPENMP" ON)
 
 ########################################################################
 # Configure Compiler
@@ -8,8 +22,26 @@ set(CMAKE_CXX_STANDARD 20)
 # Set up the build environment
 # Use the shared UHD libs
 option(UHD_USE_STATIC_LIBS OFF)
-# Add UHD as a dependency
+
+########################################################################
+# Find build dependencies
+########################################################################
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+find_package(plasma-dsp REQUIRED)
 find_package(UHD 4.0.0 REQUIRED)
+
+# TODO: I don't think I should have to do this, since plasma-dsp already links
+# to these in its own project
+target_link_libraries(plasma-dsp INTERFACE Eigen3::Eigen fftw3)
+if(${ENABLE_OPENMP})
+  find_package(OpenMP)
+  target_link_libraries(plasma-dsp INTERFACE OpenMP::OpenMP_CXX)
+endif()
+
+
+########################################################################
+# Set up UHD/Boost
+########################################################################
 # Add UHD boost requirements
 set(UHD_BOOST_REQUIRED_COMPONENTS
   program_options
@@ -46,6 +78,6 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/libsigmf
 ########################################################################
 # Add subdirectories
 ########################################################################
-add_subdirectory(include)
-add_subdirectory(lib)
+# add_subdirectory(include)
+# add_subdirectory(lib)
 add_subdirectory(app)

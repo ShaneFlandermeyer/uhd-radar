@@ -1,7 +1,5 @@
 # Create the list of sources for the uhd-radar library
-list(APPEND UHD_RADAR_SOURCES
-  Waveform.cc
-  LinearFMWaveform.cc)
+list(APPEND UHD_RADAR_SOURCES)
 # Prepend full path to the above sources
 list(TRANSFORM UHD_RADAR_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/)
 set(UHD_RADAR_SOURCES "${UHD_RADAR_SOURCES}" PARENT_SCOPE)

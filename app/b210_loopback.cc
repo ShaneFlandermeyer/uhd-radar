@@ -34,8 +34,10 @@ sigmf::SigMF<sigmf::Global<core::DescrT, antenna::DescrT>,
 static bool stopSignalCalled = false;
 void sigIntHandler(int) { stopSignalCalled = true; }
 
-/*
- * Check for LO lock
+/**
+ * @brief Check for LO lock
+ * 
+ * @param usrp multi_usrp sptr
  */
 void checkLoLock(uhd::usrp::multi_usrp::sptr usrp) {
   std::vector<std::string> txSensorNames, rxSensorNames;
@@ -278,6 +280,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   std::vector<std::complex<float> *> txBuffPtrs;
   for (size_t i = 0; i < nTxChan; i++)
     txBuffPtrs.push_back(&txBuffs[i].front());
+
   // Initialize the Rx buffer(s)
   const size_t nSampsRxBuff = rxStream->get_max_num_samps();
   int nRxChan = usrp->get_rx_num_channels();
