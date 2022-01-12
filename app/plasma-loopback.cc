@@ -18,7 +18,7 @@
  */
 void transmit(plasma::PulsedWaveform &waveform,
               std::vector<std::complex<double> *> buffers,
-              uhd::tx_streamer::sptr tx_streamer, double start_time = 0.1,
+              uhd::tx_streamer::sptr tx_stream, double start_time = 0.1,
               int num_samps_to_send = 0) {
   // TODO: Multi-prf support
   double pri = 1 / waveform.prf()[0];
@@ -36,17 +36,54 @@ void transmit(plasma::PulsedWaveform &waveform,
   size_t num_samps_pulse = data.size();
   size_t num_samps_sent = 0;
   while (num_samps_sent < num_samps_to_send or num_samps_to_send == 0) {
-    num_samps_sent += tx_streamer->send(buffers, num_samps_pulse, tx_meta);
+    num_samps_sent += tx_stream->send(buffers, num_samps_pulse, tx_meta);
     tx_meta.has_time_spec = true;
     send_time += pri;
     tx_meta.time_spec = uhd::time_spec_t(send_time);
   }
+  // Send a mini EOB packet
+  tx_meta.end_of_burst = true;
+  tx_stream->send("", 0, tx_meta);
 }
 
+void receive(std::vector<std::complex<double> *> buffers,
+             uhd::rx_streamer::sptr rx_stream, double start_time = 0.1,
+             int num_samps_to_receive = 0) {
+  uhd::stream_cmd_t stream_cmd(
+      (num_samps_to_receive == 0)
+          ? uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS
+          : uhd::stream_cmd_t::STREAM_MODE_NUM_SAMPS_AND_DONE);
+  stream_cmd.num_samps = num_samps_to_receive;
+  stream_cmd.stream_now = false;
+  stream_cmd.time_spec = uhd::time_spec_t(start_time);
+  rx_stream->issue_stream_cmd(stream_cmd);
+  // Create metadata object
+  uhd::rx_metadata_t rx_meta;
+  size_t num_samps_rx_buffer = rx_stream->get_max_num_samps();
+  // double timeout = start_time + 0.1;
+  size_t num_samps_received = 0;
+  while (num_samps_received < num_samps_to_receive or
+         num_samps_to_receive == 0) {
+    num_samps_received +=
+        rx_stream->recv(buffers, num_samps_rx_buffer, rx_meta);
+    // Error handling
+    if (rx_meta.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
+      std::cout << boost::format("Timeout while streaming") << std::endl;
+      break;
+    }
+    if (rx_meta.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) {
+      throw std::runtime_error(
+          str(boost::format("Receiver error %s") % rx_meta.strerror()));
+    }
+  }
+  stream_cmd.stream_mode = uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS;
+  rx_stream->issue_stream_cmd(stream_cmd);
+}
 /**
  * @brief Check for LO lock
  *
- * TODO: These types of helper functions should be moved to a uhd-radar library
+ * TODO: These types of helper functions should be moved to a uhd-radar
+ * library
  *
  * @param usrp multi_usrp sptr
  */
@@ -108,6 +145,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
 
   // Tx buffer initialization
   size_t num_samps_tx_buffer = waveform.size();
+  // TODO: No idea why get_tx_num_channels returns 2 here
   size_t num_tx_chan = usrp->get_tx_num_channels();
   std::vector<std::vector<std::complex<double>>> tx_buffers(
       num_tx_chan, std::vector<std::complex<double>>(num_samps_tx_buffer));
@@ -136,8 +174,14 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   size_t num_rx_offset_samps = 0;
   usrp->set_time_now(0.0);
   boost::thread_group tx_thread, rx_thread;
-  transmit(wave, tx_buffer_pointers, tx_stream, start_time, num_samps_total);
-  // tx_thread.create_thread(std::bind(&transmit,))
+  // transmit(wave, tx_buffer_pointers, tx_stream, start_time,
+  // num_samps_total);
+  tx_thread.create_thread(std::bind(&transmit, wave, tx_buffer_pointers,
+                                    tx_stream, start_time, num_samps_total));
+  rx_thread.create_thread(std::bind(&receive, rx_buffer_pointers, rx_stream,
+                                    start_time, num_samps_total));
+  tx_thread.join_all();
+  rx_thread.join_all();
 
   return EXIT_SUCCESS;
 }
