@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(UHD_RADAR VERSION 1.0 LANGUAGES CXX)
+project(UHD_RADAR VERSION 0.1 LANGUAGES CXX)
 
 # Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
