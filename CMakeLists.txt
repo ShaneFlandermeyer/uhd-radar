@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(UHD_RADAR VERSION 0.1 LANGUAGES CXX)
+project(uhd-radar VERSION 0.1 LANGUAGES CXX)
 
 # Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
@@ -14,6 +14,7 @@ endif()
 # Build options
 # ##############################################################################
 option(ENABLE_OPENMP "ENABLE_OPENMP" ON)
+option(ENABLE_MATPLOT++ "ENABLE_MATPLOT++" ON)
 
 ########################################################################
 # Configure Compiler
@@ -33,9 +34,15 @@ find_package(UHD 4.0.0 REQUIRED)
 # TODO: I don't think I should have to do this, since plasma-dsp already links
 # to these in its own project
 target_link_libraries(plasma-dsp INTERFACE Eigen3::Eigen fftw3)
+
 if(${ENABLE_OPENMP})
-  find_package(OpenMP)
+  find_package(OpenMP REQUIRED)
   target_link_libraries(plasma-dsp INTERFACE OpenMP::OpenMP_CXX)
+endif()
+
+if(${ENABLE_MATPLOT++})
+  find_package(Matplot++ REQUIRED)
+  set(Matplot++_FOUND TRUE)
 endif()
 
 
