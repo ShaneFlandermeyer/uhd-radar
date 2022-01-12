@@ -27,13 +27,16 @@ option(UHD_USE_STATIC_LIBS OFF)
 # Find build dependencies
 ########################################################################
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
-# TODO: Adda build option for this
-if(${ENABLE_OPENMP})
-  find_package(OpenMP)
-endif()
 find_package(plasma-dsp REQUIRED)
 find_package(UHD 4.0.0 REQUIRED)
 
+# TODO: I don't think I should have to do this, since plasma-dsp already links
+# to these in its own project
+target_link_libraries(plasma-dsp INTERFACE Eigen3::Eigen fftw3)
+if(${ENABLE_OPENMP})
+  find_package(OpenMP)
+  target_link_libraries(plasma-dsp INTERFACE OpenMP::OpenMP_CXX)
+endif()
 
 
 ########################################################################
