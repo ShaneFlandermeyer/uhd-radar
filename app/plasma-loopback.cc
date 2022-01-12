@@ -8,6 +8,42 @@
 #include <vector>
 
 /**
+ * @brief Transmit the pulsed waveform
+ *
+ * @param waveform
+ * @param buffers
+ * @param tx_streamer
+ * @param start_time
+ * @param num_samps_tx
+ */
+void transmit(plasma::PulsedWaveform &waveform,
+              std::vector<std::complex<double> *> buffers,
+              uhd::tx_streamer::sptr tx_streamer, double start_time = 0.1,
+              int num_samps_to_send = 0) {
+  // TODO: Multi-prf support
+  double pri = 1 / waveform.prf()[0];
+  double send_time = start_time;
+  double timeout = pri + 0.1;
+
+  // Metadata
+  uhd::tx_metadata_t tx_meta;
+  tx_meta.has_time_spec = true;
+  tx_meta.time_spec = uhd::time_spec_t(send_time);
+  tx_meta.start_of_burst = true;
+  tx_meta.end_of_burst = false;
+  // TODO: Be smarter about this number
+  std::vector<std::complex<double>> data = waveform.pulse();
+  size_t num_samps_pulse = data.size();
+  size_t num_samps_sent = 0;
+  while (num_samps_sent < num_samps_to_send or num_samps_to_send == 0) {
+    num_samps_sent += tx_streamer->send(buffers, num_samps_pulse, tx_meta);
+    tx_meta.has_time_spec = true;
+    send_time += pri;
+    tx_meta.time_spec = uhd::time_spec_t(send_time);
+  }
+}
+
+/**
  * @brief Check for LO lock
  *
  * TODO: These types of helper functions should be moved to a uhd-radar library
@@ -95,11 +131,12 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   // Set a nonzero start time to avoid an initial transient
   double start_time = 0.1;
 
-  double duration = 1;
+  double duration = 3;
   size_t num_samps_total = std::round(samp_rate * duration);
   size_t num_rx_offset_samps = 0;
   usrp->set_time_now(0.0);
   boost::thread_group tx_thread, rx_thread;
+  transmit(wave, tx_buffer_pointers, tx_stream, start_time, num_samps_total);
   // tx_thread.create_thread(std::bind(&transmit,))
 
   return EXIT_SUCCESS;
