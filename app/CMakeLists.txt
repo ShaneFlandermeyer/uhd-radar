@@ -19,6 +19,10 @@ target_link_libraries(init_usrp plasma-dsp)
 add_executable(plasma-loopback plasma-loopback.cc)
 target_link_libraries(plasma-loopback plasma-dsp)
 
+if (${Matplot++_FOUND})
+  target_link_libraries(plasma-loopback Matplot++::matplot)
+endif()
+
 # # init_usrp is super basic and doesn't need any sources
 # add_executable(init_usrp init_usrp.cc)
 # # Add B210 loopback example and link it to our include directory
