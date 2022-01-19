@@ -8,6 +8,8 @@
 #include <uhd/utils/safe_main.hpp>
 #include <vector>
 
+#include "utils.h"
+
 using namespace matplot;
 
 /**
@@ -19,7 +21,7 @@ using namespace matplot;
  * @param start_time
  * @param num_samps_tx
  */
-void transmit(const plasma::PulsedWaveform &waveform,
+void transmit_temp(const plasma::PulsedWaveform &waveform,
               std::vector<std::complex<double> *> buffers,
               uhd::tx_streamer::sptr tx_stream, double start_time = 0.1,
               int num_pulses_to_send = 0) {
@@ -63,7 +65,6 @@ inline void HandleReceiveErrors(const uhd::rx_metadata_t &rx_meta) {
   }
 }
 
-
 void receive(std::vector<std::complex<double> *> buffers,
              uhd::rx_streamer::sptr rx_stream, double start_time = 0.1,
              int num_samps_to_receive = 0) {
@@ -79,13 +80,13 @@ void receive(std::vector<std::complex<double> *> buffers,
   stream_cmd.stream_now = false;
   stream_cmd.time_spec = uhd::time_spec_t(start_time);
   rx_stream->issue_stream_cmd(stream_cmd);
-  
+
   // Create metadata object
   uhd::rx_metadata_t rx_meta;
   size_t num_samps_rx_buffer = rx_stream->get_max_num_samps();
   size_t num_samps_received = 0;
   double timeout = start_time + 0.1;
-  // Stores a pointer to where the receive command should be writing after each 
+  // Stores a pointer to where the receive command should be writing after each
   std::vector<std::complex<double> *> smol_buffer(buffers.size(), nullptr);
   while (num_samps_received < num_samps_to_receive or
          num_samps_to_receive == 0) {
@@ -100,7 +101,6 @@ void receive(std::vector<std::complex<double> *> buffers,
   stream_cmd.stream_mode = uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS;
   rx_stream->issue_stream_cmd(stream_cmd);
 }
-
 
 /**
  * @brief Check for LO lock
@@ -176,17 +176,11 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   std::vector<std::vector<std::complex<double>>> tx_buffers(
       num_tx_chan, std::vector<std::complex<double>>(num_samps_tx_buffer));
   std::copy(waveform.begin(), waveform.end(), tx_buffers[0].begin());
-  std::vector<std::complex<double> *> tx_buffer_pointers(num_tx_chan);
-  for (size_t i = 0; i < num_tx_chan; i++) {
-    tx_buffer_pointers[i] = &tx_buffers[i].front();
-  }
-
-  
 
   // Set a nonzero start time to avoid an initial transient
   double start_time = 0.5;
 
-  size_t num_pulses = 5;
+  size_t num_pulses = 10;
   size_t num_samps_total = num_pulses * num_samps_pri;
   // Rx buffer initialization
   size_t num_samps_rx_buffer = rx_stream->get_max_num_samps();
@@ -201,19 +195,19 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
 
   usrp->set_time_now(0.0);
   boost::thread_group tx_thread, rx_thread, write_thread;
-  tx_thread.create_thread(std::bind(&transmit, wave, tx_buffer_pointers,
-                                    tx_stream, start_time, num_pulses));
+  tx_thread.create_thread(std::bind(&test::transmit, tx_stream, tx_buffers, prf(0), num_pulses, start_time));
   rx_thread.create_thread(std::bind(&receive, rx_buffer_pointers, rx_stream,
                                     start_time, num_samps_total));
   tx_thread.join_all();
   rx_thread.join_all();
 
   size_t num_rx_offset_samps = 164;
-  rx_buffers[0].erase(rx_buffers[0].begin(), rx_buffers[0].begin() + num_rx_offset_samps);
+  rx_buffers[0].erase(rx_buffers[0].begin(),
+                      rx_buffers[0].begin() + num_rx_offset_samps);
   plot(plasma::real(rx_buffers[0]));
-  hold(true);
-  plot(plasma::imag(rx_buffers[0]));
-  hold(false);
+  // hold(true);
+  // plot(plasma::imag(rx_buffers[0]));
+  // hold(false);
   show();
 
   return EXIT_SUCCESS;

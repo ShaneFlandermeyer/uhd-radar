@@ -1,5 +1,6 @@
 # List of header files
-set(INCLUDE_HEADERS)
+set(INCLUDE_HEADERS
+utils.h)
 # Prepend the include directory path to each element in INCLUDE_HEADERS since
 # we'll be dealing with it globally
 list(TRANSFORM INCLUDE_HEADERS PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/)
