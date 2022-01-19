@@ -1,6 +1,8 @@
 # Create the list of sources for the uhd-radar library
 list(APPEND UHD_RADAR_SOURCES
-utils.cc)
+receive.cc
+transmit.cc
+uhd_utils.cc)
 # Prepend full path to the above sources
 list(TRANSFORM UHD_RADAR_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/)
 set(UHD_RADAR_SOURCES "${UHD_RADAR_SOURCES}" PARENT_SCOPE)

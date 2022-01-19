@@ -1,8 +1,8 @@
-#ifndef C7C305FC_6C7D_412C_A8E4_21228B58125B
-#define C7C305FC_6C7D_412C_A8E4_21228B58125B
+#ifndef FCA0C475_B76B_49D6_A57C_F204E70DDF27
+#define FCA0C475_B76B_49D6_A57C_F204E70DDF27
+
 #include <uhd/usrp/multi_usrp.hpp>
 
-// TODO: Choose a real namespace name
 namespace uhd {
 namespace radar {
 
@@ -26,11 +26,7 @@ void transmit(uhd::tx_streamer::sptr tx_stream,
               std::vector<double> prf_schedule, size_t num_pulses_to_send,
               double start_time);
 
-void receive(const uhd::rx_streamer::sptr &rx_stream,
-             std::vector<std::vector<std::complex<double>>> &rx_data,
-             size_t num_samps_to_receive, double start_time);
-
 }  // namespace radar
 }  // namespace uhd
 
-#endif /* C7C305FC_6C7D_412C_A8E4_21228B58125B */
+#endif /* FCA0C475_B76B_49D6_A57C_F204E70DDF27 */

@@ -8,7 +8,8 @@
 #include <uhd/utils/safe_main.hpp>
 #include <vector>
 
-#include "utils.h"
+#include "transmit.h"
+#include "receive.h"
 
 using namespace matplot;
 
@@ -130,6 +131,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   size_t num_rx_offset_samps = 164;
   rx_buffers[0].erase(rx_buffers[0].begin(),
                       rx_buffers[0].begin() + num_rx_offset_samps);
+
+  figure();
   plot(plasma::real(rx_buffers[0]));
   // hold(true);
   // plot(plasma::imag(rx_buffers[0]));
