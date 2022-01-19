@@ -12,48 +12,6 @@
 
 using namespace matplot;
 
-/**
- * @brief Transmit the pulsed waveform
- *
- * @param waveform
- * @param buffers
- * @param tx_streamer
- * @param start_time
- * @param num_samps_tx
- */
-void transmit_temp(const plasma::PulsedWaveform &waveform,
-              std::vector<std::complex<double> *> buffers,
-              uhd::tx_streamer::sptr tx_stream, double start_time = 0.1,
-              int num_pulses_to_send = 0) {
-  Eigen::ArrayXd pri = 1 / waveform.prf();
-  size_t pri_index = 0;
-  // Metadata
-  uhd::tx_metadata_t tx_meta;
-  double send_time = start_time;
-  size_t num_samps_pulse = waveform.pulse_width() * waveform.samp_rate();
-  Eigen::ArrayXi num_samps_pri = round(pri * waveform.samp_rate()).cast<int>();
-  size_t num_pulses_sent = 0;
-  bool repeat = (num_pulses_to_send == 0 ? true : false);
-  while (repeat or num_pulses_sent < num_pulses_to_send) {
-    // Transmit the pulse as a UHD burst
-    tx_meta.start_of_burst = true;
-    tx_meta.has_time_spec = true;
-    tx_meta.time_spec = uhd::time_spec_t(send_time);
-    double timeout = std::max(start_time, pri(pri_index)) + 0.1;
-    tx_stream->send(buffers, num_samps_pulse, tx_meta, timeout);
-
-    // Send an empty packet to signal the end of the burst
-    tx_meta.start_of_burst = false;
-    tx_meta.end_of_burst = true;
-    tx_stream->send("", 0, tx_meta);
-
-    // Update counters
-    send_time += pri(pri_index);
-    num_pulses_sent++;
-    pri_index = (pri_index + 1) % pri.size();
-  }
-}
-
 inline void HandleReceiveErrors(const uhd::rx_metadata_t &rx_meta) {
   if (rx_meta.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
     std::cout << boost::format("Timeout while streaming") << std::endl;
@@ -63,43 +21,6 @@ inline void HandleReceiveErrors(const uhd::rx_metadata_t &rx_meta) {
     throw std::runtime_error(
         str(boost::format("Receiver error %s") % rx_meta.strerror()));
   }
-}
-
-void receive(std::vector<std::complex<double> *> buffers,
-             uhd::rx_streamer::sptr rx_stream, double start_time = 0.1,
-             int num_samps_to_receive = 0) {
-  // TODO: Initialize the buffers to store all the desired num_samps_to_receive
-  // It's not the optimal solution, but it is a good start
-
-  // Set up the stream command
-  uhd::stream_cmd_t stream_cmd(
-      (num_samps_to_receive == 0)
-          ? uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS
-          : uhd::stream_cmd_t::STREAM_MODE_NUM_SAMPS_AND_DONE);
-  stream_cmd.num_samps = num_samps_to_receive;
-  stream_cmd.stream_now = false;
-  stream_cmd.time_spec = uhd::time_spec_t(start_time);
-  rx_stream->issue_stream_cmd(stream_cmd);
-
-  // Create metadata object
-  uhd::rx_metadata_t rx_meta;
-  size_t num_samps_rx_buffer = rx_stream->get_max_num_samps();
-  size_t num_samps_received = 0;
-  double timeout = start_time + 0.1;
-  // Stores a pointer to where the receive command should be writing after each
-  std::vector<std::complex<double> *> smol_buffer(buffers.size(), nullptr);
-  while (num_samps_received < num_samps_to_receive or
-         num_samps_to_receive == 0) {
-    // TODO: When multiple channel support is added, we'll need to loop over
-    // channels to get these pointers. For now, one channel is fine
-    smol_buffer[0] = &(buffers[0][num_samps_received]);
-    num_samps_received +=
-        rx_stream->recv(smol_buffer, num_samps_rx_buffer, rx_meta, timeout);
-    timeout = 0.1;
-    HandleReceiveErrors(rx_meta);
-  }
-  stream_cmd.stream_mode = uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS;
-  rx_stream->issue_stream_cmd(stream_cmd);
 }
 
 /**
@@ -188,16 +109,21 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   size_t num_rx_chan = 1;
   std::vector<std::vector<std::complex<double>>> rx_buffers(
       num_rx_chan, std::vector<std::complex<double>>(num_samps_total));
-  std::vector<std::complex<double> *> rx_buffer_pointers(num_rx_chan);
-  for (size_t i = 0; i < num_rx_chan; i++) {
-    rx_buffer_pointers[i] = &rx_buffers[i].front();
-  }
 
   usrp->set_time_now(0.0);
   boost::thread_group tx_thread, rx_thread, write_thread;
-  tx_thread.create_thread(std::bind(&test::transmit, tx_stream, tx_buffers, prf(0), num_pulses, start_time));
-  rx_thread.create_thread(std::bind(&receive, rx_buffer_pointers, rx_stream,
-                                    start_time, num_samps_total));
+  tx_thread.create_thread([&tx_stream, &tx_buffers, &prf, &num_pulses,
+                           &start_time]() {
+    uhd::radar::transmit(tx_stream, tx_buffers, prf(0), num_pulses, start_time);
+  });
+  rx_thread.create_thread(
+      [&rx_stream, &rx_buffers, &num_samps_total, &start_time]() {
+        uhd::radar::receive(rx_stream, rx_buffers, num_samps_total, start_time);
+      });
+  // rx_thread.create_thread(
+  //     [&rx_buffer_pointers, &rx_stream, &start_time, &num_samps_total]() {
+  //       receive(rx_buffer_pointers, rx_stream, start_time, num_samps_total);
+  //     });
   tx_thread.join_all();
   rx_thread.join_all();
 
