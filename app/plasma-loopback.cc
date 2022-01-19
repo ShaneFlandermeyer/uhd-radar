@@ -8,8 +8,8 @@
 #include <uhd/utils/safe_main.hpp>
 #include <vector>
 
-#include "transmit.h"
 #include "receive.h"
+#include "transmit.h"
 
 using namespace matplot;
 
@@ -74,11 +74,11 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   // Waveform setup
   double bandwidth = samp_rate / 2;
   double pulsewidth = 100e-6;
-  Eigen::ArrayXd prf(1);
-  prf << 1e3;
+  Eigen::ArrayXd prf(2);
+  prf << 1e3, 2e3;
   size_t num_samps_pulse = round(samp_rate * pulsewidth);
-  // TODO: Extend this to mutltiple PRFs
-  size_t num_samps_pri = round(samp_rate / prf(0));
+  
+  // size_t num_samps_pri = round(samp_rate / prf(0));
   plasma::LinearFMWaveform wave(bandwidth, pulsewidth, prf, samp_rate);
   Eigen::ArrayXcd pulse = wave.waveform();
   std::vector<std::complex<double>> waveform(pulse.data(),
@@ -101,11 +101,16 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
 
   // Set a nonzero start time to avoid an initial transient
   double start_time = 0.5;
-
   size_t num_pulses = 10;
-  size_t num_samps_total = num_pulses * num_samps_pri;
+  
+  // Compute the total number of samples in the collect
+  Eigen::ArrayXi num_samps_pri = round(samp_rate / prf).cast<int>();
+  size_t num_samps_total = 0;
+  for (size_t i = 0; i < num_pulses; i++) {
+    num_samps_total += num_samps_pri(i % prf.size());
+  }
+
   // Rx buffer initialization
-  size_t num_samps_rx_buffer = rx_stream->get_max_num_samps();
   // TODO: Add multi-channel support
   size_t num_rx_chan = 1;
   std::vector<std::vector<std::complex<double>>> rx_buffers(
@@ -113,18 +118,18 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
 
   usrp->set_time_now(0.0);
   boost::thread_group tx_thread, rx_thread, write_thread;
-  tx_thread.create_thread([&tx_stream, &tx_buffers, &prf, &num_pulses,
-                           &start_time]() {
-    uhd::radar::transmit(tx_stream, tx_buffers, prf(0), num_pulses, start_time);
-  });
+  tx_thread.create_thread(
+      [&tx_stream, &tx_buffers, &prf, &num_pulses, &start_time]() {
+        uhd::radar::transmit(
+            tx_stream, tx_buffers,
+            std::vector<double>(prf.data(), prf.data() + prf.size()),
+            num_pulses, start_time);
+      });
+  // TODO: Add receive support for multi-prf
   rx_thread.create_thread(
       [&rx_stream, &rx_buffers, &num_samps_total, &start_time]() {
         uhd::radar::receive(rx_stream, rx_buffers, num_samps_total, start_time);
       });
-  // rx_thread.create_thread(
-  //     [&rx_buffer_pointers, &rx_stream, &start_time, &num_samps_total]() {
-  //       receive(rx_buffer_pointers, rx_stream, start_time, num_samps_total);
-  //     });
   tx_thread.join_all();
   rx_thread.join_all();
 
