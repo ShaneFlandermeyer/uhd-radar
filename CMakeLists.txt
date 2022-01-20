@@ -85,6 +85,6 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/libsigmf
 ########################################################################
 # Add subdirectories
 ########################################################################
-# add_subdirectory(include)
-# add_subdirectory(lib)
+add_subdirectory(include)
+add_subdirectory(lib)
 add_subdirectory(app)
