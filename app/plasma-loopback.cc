@@ -10,49 +10,9 @@
 
 #include "receive.h"
 #include "transmit.h"
+#include "uhd_utils.h"
 
 using namespace matplot;
-
-inline void HandleReceiveErrors(const uhd::rx_metadata_t &rx_meta) {
-  if (rx_meta.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
-    std::cout << boost::format("Timeout while streaming") << std::endl;
-    return;
-  }
-  if (rx_meta.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) {
-    throw std::runtime_error(
-        str(boost::format("Receiver error %s") % rx_meta.strerror()));
-  }
-}
-
-/**
- * @brief Check for LO lock
- *
- * TODO: These types of helper functions should be moved to a uhd-radar
- * library
- *
- * @param usrp multi_usrp sptr
- */
-void CheckLoLock(uhd::usrp::multi_usrp::sptr usrp) {
-  std::vector<std::string> txSensorNames, rxSensorNames;
-  txSensorNames = usrp->get_tx_sensor_names(0);
-  rxSensorNames = usrp->get_rx_sensor_names(0);
-  // Tx check
-  if (std::find(txSensorNames.begin(), txSensorNames.end(), "lo_locked") !=
-      txSensorNames.end()) {
-    uhd::sensor_value_t lo_locked = usrp->get_tx_sensor("lo_locked", 0);
-    std::cout << boost::format("Checking Tx %s") % lo_locked.to_pp_string()
-              << std::endl;
-    UHD_ASSERT_THROW(lo_locked.to_bool());
-  }
-  // Rx check
-  if (std::find(rxSensorNames.begin(), rxSensorNames.end(), "lo_locked") !=
-      rxSensorNames.end()) {
-    uhd::sensor_value_t lo_locked = usrp->get_rx_sensor("lo_locked", 0);
-    std::cout << boost::format("Checking Rx %s") % lo_locked.to_pp_string()
-              << std::endl;
-    UHD_ASSERT_THROW(lo_locked.to_bool());
-  }
-}
 
 int UHD_SAFE_MAIN(int argc, char *argv[]) {
   // USRP setup
@@ -69,15 +29,15 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   usrp->set_rx_freq(center_freq);
   usrp->set_tx_gain(tx_gain);
   usrp->set_rx_gain(rx_gain);
-  CheckLoLock(usrp);
+  uhd::radar::check_lo_lock(usrp);
 
   // Waveform setup
   double bandwidth = samp_rate / 2;
   double pulsewidth = 100e-6;
   Eigen::ArrayXd prf(2);
-  prf << 1e3, 2e3;
+  prf = 1e3;
   size_t num_samps_pulse = round(samp_rate * pulsewidth);
-  
+
   // size_t num_samps_pri = round(samp_rate / prf(0));
   plasma::LinearFMWaveform wave(bandwidth, pulsewidth, prf, samp_rate);
   Eigen::ArrayXcd pulse = wave.waveform();
@@ -102,7 +62,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   // Set a nonzero start time to avoid an initial transient
   double start_time = 0.5;
   size_t num_pulses = 10;
-  
+
   // Compute the total number of samples in the collect
   Eigen::ArrayXi num_samps_pri = round(samp_rate / prf).cast<int>();
   size_t num_samps_total = 0;
@@ -125,7 +85,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
             std::vector<double>(prf.data(), prf.data() + prf.size()),
             num_pulses, start_time);
       });
-  // TODO: Add receive support for multi-prf
   rx_thread.create_thread(
       [&rx_stream, &rx_buffers, &num_samps_total, &start_time]() {
         uhd::radar::receive(rx_stream, rx_buffers, num_samps_total, start_time);
@@ -139,9 +98,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
 
   figure();
   plot(plasma::real(rx_buffers[0]));
-  // hold(true);
-  // plot(plasma::imag(rx_buffers[0]));
-  // hold(false);
   show();
 
   return EXIT_SUCCESS;

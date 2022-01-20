@@ -38,10 +38,24 @@ void receive(const uhd::rx_streamer::sptr &rx_stream,
     // After the first call, the timeout can be set to a smaller value
     timeout = 0.1;
 
-    // TODO: Check for errors
+    // Check for errors after every packet
+    handle_receive_errors(rx_meta);
   }
   stream_cmd.stream_mode = uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS;
   rx_stream->issue_stream_cmd(stream_cmd);
 }
+
+inline void handle_receive_errors(const uhd::rx_metadata_t &rx_meta) {
+  if (rx_meta.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
+    std::cout << boost::format("No packet received, implementation timed-out.")
+              << std::endl;
+    return;
+  }
+  if (rx_meta.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) {
+    throw std::runtime_error(
+        str(boost::format("Receiver error %s") % rx_meta.strerror()));
+  }
+}
+
 }  // namespace radar
 }  // namespace uhd

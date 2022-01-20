@@ -10,6 +10,8 @@ void receive(const uhd::rx_streamer::sptr &rx_stream,
              std::vector<std::vector<std::complex<double>>> &rx_data,
              size_t num_samps_to_receive, double start_time);
 
+void handle_receive_errors(const uhd::rx_metadata_t &rx_meta);
+
 }  // namespace radar
 }  // namespace uhd
 
