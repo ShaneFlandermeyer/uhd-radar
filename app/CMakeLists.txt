@@ -16,11 +16,11 @@ endif (NOT UHD_USE_STATIC_LIBS)
 add_executable(init_usrp init_usrp.cc)
 target_link_libraries(init_usrp plasma-dsp)
 
-add_executable(plasma-loopback plasma-loopback.cc)
-target_link_libraries(plasma-loopback plasma-dsp uhd-radar)
+add_executable(plasma_loopback plasma_loopback.cc)
+target_link_libraries(plasma_loopback plasma-dsp uhd-radar)
 
 if (${Matplot++_FOUND})
-  target_link_libraries(plasma-loopback Matplot++::matplot)
+  target_link_libraries(plasma_loopback Matplot++::matplot)
 endif()
 
 # # init_usrp is super basic and doesn't need any sources
