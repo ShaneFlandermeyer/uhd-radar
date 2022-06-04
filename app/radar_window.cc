@@ -8,13 +8,11 @@ void transmit(uhd::usrp::multi_usrp::sptr usrp,
   static bool first = true;
 
   static uhd::stream_args_t tx_stream_args("fc32", "sc16");
-  if (first) {
-    tx_stream_args.channels.push_back(0);
-  }
-
   static uhd::tx_streamer::sptr tx_stream;
   if (first) {
+    tx_stream_args.channels.push_back(0);
     tx_stream = usrp->get_tx_stream(tx_stream_args);
+    first = false;
   }
 
   // Create metadata structure
@@ -34,8 +32,6 @@ void transmit(uhd::usrp::multi_usrp::sptr usrp,
   tx_md.has_time_spec = false;
   tx_md.end_of_burst = true;
   tx_stream->send("", 0, tx_md);
-
-  first = false;
 }
 
 size_t receive(uhd::usrp::multi_usrp::sptr usrp,
@@ -65,8 +61,7 @@ void RadarWindow::on_start_button_clicked() {
   std::vector<std::complex<float> *> tx_buff_ptrs;
   tx_buff_ptrs.push_back(&tx_buff->front());
   usrp->set_time_now(0.0);
-  transmit(usrp, tx_buff_ptrs, 2, waveform_data.size(),
-           uhd::time_spec_t(2.0));
+  transmit(usrp, tx_buff_ptrs,num_pulses_tx , waveform_data.size(), tx_start_time);
   std::cout << "Transmission successful" << std::endl;
 }
 
@@ -83,22 +78,31 @@ void RadarWindow::on_waveform_update_button_clicked() {
 
 void RadarWindow::on_usrp_update_button_clicked() {
   // Tx parameters
-  double tx_rate = ui->tx_rate->text().toDouble();
-  double tx_freq = ui->tx_freq->text().toDouble();
-  double tx_gain = ui->tx_gain->text().toDouble();
-  std::string tx_args = ui->tx_args->text().toStdString();
+  tx_rate = ui->tx_rate->text().toDouble();
+  tx_freq = ui->tx_freq->text().toDouble();
+  tx_gain = ui->tx_gain->text().toDouble();
+  tx_start_time =
+      uhd::time_spec_t(ui->tx_start_time->text().toDouble());
+  tx_args = ui->tx_args->text().toStdString();
   // Rx parameters
-  double rx_rate = ui->rx_rate->text().toDouble();
-  double rx_freq = ui->rx_freq->text().toDouble();
-  double rx_gain = ui->rx_gain->text().toDouble();
-  std::string rx_args = ui->rx_args->text().toStdString();
+  rx_rate = ui->rx_rate->text().toDouble();
+  rx_freq = ui->rx_freq->text().toDouble();
+  rx_gain = ui->rx_gain->text().toDouble();
+  rx_start_time =
+      uhd::time_spec_t(ui->rx_start_time->text().toDouble());
+  rx_args = ui->rx_args->text().toStdString();
+  num_pulses_tx = ui->num_pulses_tx->text().toDouble();
   if (strcmp(rx_args.c_str(), "")) {
     UHD_LOG_WARNING("RADAR_WINDOW", "Only Tx args are currently used");
   }
 
   // Configure the USRP device
+  static bool first = true;
   try {
-    usrp = uhd::usrp::multi_usrp::make(tx_args);
+    if (first) {
+      usrp = uhd::usrp::multi_usrp::make(tx_args);
+      first = false;
+    }
     usrp->set_tx_rate(tx_rate);
     usrp->set_rx_rate(rx_rate);
     usrp->set_tx_freq(tx_freq);

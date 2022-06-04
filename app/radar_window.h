@@ -19,9 +19,18 @@ class RadarWindow : public QMainWindow {
   explicit RadarWindow(QWidget *parent = 0);
   ~RadarWindow() override;
 
+  // Objects
   uhd::usrp::multi_usrp::sptr usrp;
   Ui::RadarWindow *ui;
   plasma::LinearFMWaveform waveform;
+
+  // Parameters
+  double tx_rate, rx_rate;
+  double tx_freq, rx_freq;
+  double tx_gain, rx_gain;
+  uhd::time_spec_t tx_start_time, rx_start_time;
+  std::string tx_args, rx_args;
+  size_t num_pulses_tx;
 
  private slots:
   void on_usrp_update_button_clicked();
