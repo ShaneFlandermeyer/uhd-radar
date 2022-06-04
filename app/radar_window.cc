@@ -35,9 +35,60 @@ void transmit(uhd::usrp::multi_usrp::sptr usrp,
 }
 
 size_t receive(uhd::usrp::multi_usrp::sptr usrp,
-               std::vector<std::complex<float> *> buff_ptrs, size_t len,
+               std::vector<std::complex<float> *> buff_ptrs, size_t num_samps,
                uhd::time_spec_t start_time) {
-  return 0;
+  static bool first = true;
+
+  static size_t channels = usrp->get_rx_num_channels();
+  static std::vector<size_t> channel_vec;
+  static uhd::stream_args_t stream_args("fc32", "sc16");
+  static uhd::rx_streamer::sptr rx_stream;
+
+  if (first) {
+    if (channel_vec.size() == 0) {
+      for (size_t i = 0; i < channels; i++) {
+        channel_vec.push_back(i);
+      }
+    }
+    stream_args.channels = channel_vec;
+    rx_stream = usrp->get_rx_stream(stream_args);
+    first = false;
+  }
+
+  uhd::rx_metadata_t md;
+
+  // Set up streaming
+  uhd::stream_cmd_t stream_cmd(
+      uhd::stream_cmd_t::STREAM_MODE_NUM_SAMPS_AND_DONE);
+  stream_cmd.num_samps = num_samps;
+  stream_cmd.stream_now = false;
+  stream_cmd.time_spec = start_time;
+  rx_stream->issue_stream_cmd(stream_cmd);
+
+  size_t max_num_samps = rx_stream->get_max_num_samps();
+  size_t num_samps_total = 0;
+  std::vector<std::complex<float> *> buff_ptrs2(buff_ptrs.size());
+  while(num_samps_total < num_samps) {
+    // Move storing pointer to correct location
+    for (size_t i = 0; i < channels; i++)
+      buff_ptrs2[i] = &(buff_ptrs[i][num_samps_total]);
+
+    // Sampling data
+    size_t samps_to_recv = std::min(num_samps - num_samps_total, max_num_samps);
+    size_t num_rx_samps = rx_stream->recv(buff_ptrs2, samps_to_recv, md, 0.5);
+
+    num_samps_total += num_rx_samps;
+
+    // handle the error code
+    if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) break;
+    if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) break;
+  }
+
+  first = false;
+  if (num_samps_total < num_samps)
+    return -((long int)num_samps_total);
+  else
+    return (long int)num_samps_total;
 }
 
 RadarWindow::RadarWindow(QWidget *parent)
@@ -61,7 +112,8 @@ void RadarWindow::on_start_button_clicked() {
   std::vector<std::complex<float> *> tx_buff_ptrs;
   tx_buff_ptrs.push_back(&tx_buff->front());
   usrp->set_time_now(0.0);
-  transmit(usrp, tx_buff_ptrs,num_pulses_tx , waveform_data.size(), tx_start_time);
+  transmit(usrp, tx_buff_ptrs, num_pulses_tx, waveform_data.size(),
+           tx_start_time);
   std::cout << "Transmission successful" << std::endl;
 }
 
@@ -81,15 +133,13 @@ void RadarWindow::on_usrp_update_button_clicked() {
   tx_rate = ui->tx_rate->text().toDouble();
   tx_freq = ui->tx_freq->text().toDouble();
   tx_gain = ui->tx_gain->text().toDouble();
-  tx_start_time =
-      uhd::time_spec_t(ui->tx_start_time->text().toDouble());
+  tx_start_time = uhd::time_spec_t(ui->tx_start_time->text().toDouble());
   tx_args = ui->tx_args->text().toStdString();
   // Rx parameters
   rx_rate = ui->rx_rate->text().toDouble();
   rx_freq = ui->rx_freq->text().toDouble();
   rx_gain = ui->rx_gain->text().toDouble();
-  rx_start_time =
-      uhd::time_spec_t(ui->rx_start_time->text().toDouble());
+  rx_start_time = uhd::time_spec_t(ui->rx_start_time->text().toDouble());
   rx_args = ui->rx_args->text().toStdString();
   num_pulses_tx = ui->num_pulses_tx->text().toDouble();
   if (strcmp(rx_args.c_str(), "")) {
