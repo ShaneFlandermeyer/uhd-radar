@@ -17,7 +17,7 @@ target_include_directories(uhd_radar
 )
 
 # Link any necessary dependency libraries
-target_link_libraries(uhd_radar PUBLIC plasma-dsp ${UHD_LIBRARIES} qwt-qt5 Qt5::Widgets)
+target_link_libraries(uhd_radar PUBLIC plasma_dsp ${UHD_LIBRARIES} qwt-qt5 Qt5::Widgets)
 
 target_include_directories(uhd_radar INTERFACE
     $<BUILD_INTERFACE:${JSON_INCLUDE_DIR}>

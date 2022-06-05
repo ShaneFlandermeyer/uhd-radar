@@ -1,5 +1,5 @@
 #include <matplot/matplot.h>
-#include <plasma-dsp/linear-fm-waveform.h>
+#include <plasma_dsp/linear-fm-waveform.h>
 
 #include <boost/thread.hpp>
 #include <iostream>

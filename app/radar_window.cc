@@ -105,6 +105,7 @@ RadarWindow::RadarWindow(QWidget *parent)
 RadarWindow::~RadarWindow() { delete ui; }
 
 void RadarWindow::on_start_button_clicked() {
+  boost::thread_group tx_thread;
   Eigen::ArrayXcf waveform_data = waveform.step().cast<std::complex<float>>();
   std::vector<std::complex<float>> *tx_buff =
       new std::vector<std::complex<float>>(
@@ -112,8 +113,9 @@ void RadarWindow::on_start_button_clicked() {
   std::vector<std::complex<float> *> tx_buff_ptrs;
   tx_buff_ptrs.push_back(&tx_buff->front());
   usrp->set_time_now(0.0);
-  transmit(usrp, tx_buff_ptrs, num_pulses_tx, waveform_data.size(),
-           tx_start_time);
+  tx_thread.create_thread(boost::bind(&transmit, usrp, tx_buff_ptrs,num_pulses_tx,waveform_data.size(),tx_start_time));
+  // transmit(usrp, tx_buff_ptrs, num_pulses_tx, waveform_data.size(),
+          //  tx_start_time);
   std::cout << "Transmission successful" << std::endl;
 }
 

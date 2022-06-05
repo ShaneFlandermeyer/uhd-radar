@@ -10,7 +10,7 @@
 // The program itself only initializes a USRP. For more elaborate examples,
 // have a look at the files in host/examples/.
 
-#include <plasma-dsp/linear_fm_waveform.h>
+#include <plasma_dsp/linear_fm_waveform.h>
 
 #include <boost/format.hpp>
 #include <boost/program_options.hpp>

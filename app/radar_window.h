@@ -1,7 +1,7 @@
 #ifndef C8BFB65A_99BB_4C74_BE37_D5A14BD126D0
 #define C8BFB65A_99BB_4C74_BE37_D5A14BD126D0
 
-#include <plasma-dsp/linear_fm_waveform.h>
+#include <plasma_dsp/linear_fm_waveform.h>
 
 #include <QMainWindow>
 #include <boost/thread.hpp>
