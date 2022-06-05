@@ -1,5 +1,4 @@
 #include "radar_window.h"
-
 #include "../ui/ui_radar_window.h"
 
 void transmit(uhd::usrp::multi_usrp::sptr usrp,

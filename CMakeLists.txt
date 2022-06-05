@@ -36,6 +36,7 @@ find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(plasma_dsp REQUIRED)
 find_package(UHD 4.0.0 REQUIRED)
 find_package(Qt5 COMPONENTS Widgets)
+find_package(Qwt)
 find_package(OpenMP)
 
 # Output results for optional packages

@@ -22,7 +22,7 @@
      <rect>
       <x>9</x>
       <y>9</y>
-      <width>568</width>
+      <width>641</width>
       <height>223</height>
      </rect>
     </property>
@@ -313,9 +313,26 @@
      </item>
     </layout>
    </widget>
+   <widget class="QwtPlot" name="rx_plot">
+    <property name="geometry">
+     <rect>
+      <x>260</x>
+      <y>360</y>
+      <width>541</width>
+      <height>331</height>
+     </rect>
+    </property>
+   </widget>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>QwtPlot</class>
+   <extends>QFrame</extends>
+   <header>qwt_plot.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>
