@@ -2,12 +2,13 @@
 #define C8BFB65A_99BB_4C74_BE37_D5A14BD126D0
 
 #include <plasma_dsp/linear_fm_waveform.h>
+#include <qwt/qwt_plot_curve.h>
 
 #include <QMainWindow>
 #include <boost/thread.hpp>
+#include <fstream>
 #include <thread>
 #include <uhd/usrp/multi_usrp.hpp>
-#include <fstream>
 
 namespace Ui {
 class RadarWindow;
@@ -42,6 +43,7 @@ class RadarWindow : public QMainWindow {
 
  private:
   boost::thread_group pulse_doppler_thread;
+  QwtPlotCurve *rx_data_curve;
 };
 
 // #include <qwt/qwt_thermo.h>

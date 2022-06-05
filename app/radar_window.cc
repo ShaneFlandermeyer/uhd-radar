@@ -1,4 +1,7 @@
 #include "radar_window.h"
+
+#include <qwt/qwt_plot.h>
+
 #include "../ui/ui_radar_window.h"
 
 void transmit(uhd::usrp::multi_usrp::sptr usrp,
@@ -33,9 +36,9 @@ void transmit(uhd::usrp::multi_usrp::sptr usrp,
   tx_stream->send("", 0, tx_md);
 }
 
-size_t receive(uhd::usrp::multi_usrp::sptr usrp,
-               std::vector<std::complex<float> *> buff_ptrs, size_t num_samps,
-               uhd::time_spec_t start_time) {
+long int receive(uhd::usrp::multi_usrp::sptr usrp,
+                 std::vector<std::complex<float> *> buff_ptrs, size_t num_samps,
+                 uhd::time_spec_t start_time) {
   static bool first = true;
 
   // static size_t channels = usrp->get_rx_num_channels();
@@ -61,21 +64,24 @@ size_t receive(uhd::usrp::multi_usrp::sptr usrp,
   uhd::stream_cmd_t stream_cmd(
       uhd::stream_cmd_t::STREAM_MODE_NUM_SAMPS_AND_DONE);
   stream_cmd.num_samps = num_samps;
-  stream_cmd.stream_now = false;
   stream_cmd.time_spec = start_time;
+  stream_cmd.stream_now = false;
   rx_stream->issue_stream_cmd(stream_cmd);
 
   size_t max_num_samps = rx_stream->get_max_num_samps();
   size_t num_samps_total = 0;
   std::vector<std::complex<float> *> buff_ptrs2(buff_ptrs.size());
-  while(num_samps_total < num_samps) {
+  double timeout = 0.5 + start_time.get_real_secs();
+  while (num_samps_total < num_samps) {
     // Move storing pointer to correct location
     for (size_t i = 0; i < channels; i++)
       buff_ptrs2[i] = &(buff_ptrs[i][num_samps_total]);
 
     // Sampling data
     size_t samps_to_recv = std::min(num_samps - num_samps_total, max_num_samps);
-    size_t num_rx_samps = rx_stream->recv(buff_ptrs2, samps_to_recv, md, 0.5);
+    size_t num_rx_samps =
+        rx_stream->recv(buff_ptrs2, samps_to_recv, md, timeout);
+    timeout = 0.5;
 
     num_samps_total += num_rx_samps;
 
@@ -84,7 +90,6 @@ size_t receive(uhd::usrp::multi_usrp::sptr usrp,
     if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) break;
   }
 
-  first = false;
   if (num_samps_total < num_samps)
     return -((long int)num_samps_total);
   else
@@ -100,11 +105,15 @@ RadarWindow::RadarWindow(QWidget *parent)
           SLOT(on_waveform_update_button_clicked()), Qt::UniqueConnection);
   connect(ui->start_button, SIGNAL(clicked()), this,
           SLOT(on_start_button_clicked()), Qt::UniqueConnection);
+  ui->rx_plot->setTitle("Rx data");
+  rx_data_curve = new QwtPlotCurve();
+  rx_data_curve->setPen(QPen(Qt::red));
 }
 
 RadarWindow::~RadarWindow() { delete ui; }
 
 void RadarWindow::on_start_button_clicked() {
+  static bool first = true;
   update_usrp();
   update_waveform();
   // Set up Tx buffer
@@ -114,27 +123,49 @@ void RadarWindow::on_start_button_clicked() {
       new std::vector<std::complex<float>>(
           waveform_data.data(), waveform_data.data() + waveform_data.size());
   std::vector<std::complex<float> *> tx_buff_ptrs;
+  tx_buff_ptrs.clear();
   tx_buff_ptrs.push_back(&tx_buff->front());
 
   // Set up Rx buffer
-  size_t num_samp_rx = waveform_data.size()*num_pulses_tx;
-  std::vector<std::complex<float>*> rx_buff_ptrs;
-  std::vector<std::complex<float>>* rx_buff = new std::vector<std::complex<float>>(num_samp_rx,0);
+  size_t num_samp_rx = waveform_data.size() * num_pulses_tx;
+  std::vector<std::complex<float> *> rx_buff_ptrs;
+  std::vector<std::complex<float>> *rx_buff =
+      new std::vector<std::complex<float>>(num_samp_rx, 0);
+  rx_buff_ptrs.clear();
   rx_buff_ptrs.push_back(&rx_buff->front());
-  
-  usrp->set_time_now(0.0);
-  tx_thread.create_thread(boost::bind(&transmit, usrp, tx_buff_ptrs,num_pulses_tx,waveform_data.size(),tx_start_time));
-  size_t n = receive(usrp,rx_buff_ptrs, num_samp_rx,rx_start_time);
+
+  uhd::time_spec_t time_now = usrp->get_time_now();
+
+  tx_thread.create_thread(boost::bind(&transmit, usrp, tx_buff_ptrs,
+                                      num_pulses_tx, waveform_data.size(),
+                                      time_now + tx_start_time));
+  size_t n = receive(usrp, rx_buff_ptrs, num_samp_rx, time_now + rx_start_time);
 
   tx_thread.join_all();
-  
 
-  // TODO: Make this an option
-  std::ofstream outfile("/home/shane/gui_output.dat", std::ios::out | std::ios::binary);
-  outfile.write((char*)rx_buff->data(), sizeof(std::complex<float>) * rx_buff->size());
-  outfile.close();
+  // TODO: Make this an option in the gui
+  // std::ofstream outfile("/home/shane/gui_output.dat",
+  //                       std::ios::out | std::ios::binary);
+  // outfile.write((char *)rx_buff->data(),
+  //               sizeof(std::complex<float>) * rx_buff->size());
+  // outfile.close();
 
   std::cout << "Transmission successful" << std::endl;
+
+  // Just plot the first pulse for now
+  size_t nplot = num_samp_rx / num_pulses_tx;
+  // size_t nplot = 300;
+  std::vector<double> xdata(nplot);
+  std::vector<double> ydata(nplot);
+  for (int i = 0; i < nplot; i++) {
+    xdata[i] = i;
+    ydata[i] = abs(rx_buff->at(i));
+  }
+  rx_data_curve->setSamples(xdata.data(), ydata.data(), nplot);
+  rx_data_curve->attach(ui->rx_plot);
+
+  ui->rx_plot->replot();
+  ui->rx_plot->show();
 
   delete rx_buff;
   delete tx_buff;
@@ -178,7 +209,6 @@ void RadarWindow::update_usrp() {
   } catch (const std::exception &e) {
     UHD_LOG_ERROR("RADAR_WINDOW", e.what());
   }
-
 }
 
 void RadarWindow::update_waveform() {
@@ -192,12 +222,6 @@ void RadarWindow::update_waveform() {
   std::cout << "Waveform successfully configured" << std::endl;
 }
 
-void RadarWindow::on_waveform_update_button_clicked() {
-  update_waveform();
-  
-}
+void RadarWindow::on_waveform_update_button_clicked() { update_waveform(); }
 
-void RadarWindow::on_usrp_update_button_clicked() {
-  update_usrp();
-  
-}
+void RadarWindow::on_usrp_update_button_clicked() { update_usrp(); }
