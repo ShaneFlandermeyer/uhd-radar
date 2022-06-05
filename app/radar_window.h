@@ -7,6 +7,7 @@
 #include <boost/thread.hpp>
 #include <thread>
 #include <uhd/usrp/multi_usrp.hpp>
+#include <fstream>
 
 namespace Ui {
 class RadarWindow;

@@ -39,7 +39,8 @@ size_t receive(uhd::usrp::multi_usrp::sptr usrp,
                uhd::time_spec_t start_time) {
   static bool first = true;
 
-  static size_t channels = usrp->get_rx_num_channels();
+  // static size_t channels = usrp->get_rx_num_channels();
+  static size_t channels = 1;
   static std::vector<size_t> channel_vec;
   static uhd::stream_args_t stream_args("fc32", "sc16");
   static uhd::rx_streamer::sptr rx_stream;
@@ -105,6 +106,7 @@ RadarWindow::RadarWindow(QWidget *parent)
 RadarWindow::~RadarWindow() { delete ui; }
 
 void RadarWindow::on_start_button_clicked() {
+  // Set up Tx buffer
   boost::thread_group tx_thread;
   Eigen::ArrayXcf waveform_data = waveform.step().cast<std::complex<float>>();
   std::vector<std::complex<float>> *tx_buff =
@@ -112,11 +114,29 @@ void RadarWindow::on_start_button_clicked() {
           waveform_data.data(), waveform_data.data() + waveform_data.size());
   std::vector<std::complex<float> *> tx_buff_ptrs;
   tx_buff_ptrs.push_back(&tx_buff->front());
+
+  // Set up Rx buffer
+  size_t num_samp_rx = waveform_data.size()*num_pulses_tx;
+  std::vector<std::complex<float>*> rx_buff_ptrs;
+  std::vector<std::complex<float>>* rx_buff = new std::vector<std::complex<float>>(num_samp_rx,0);
+  rx_buff_ptrs.push_back(&rx_buff->front());
+  
   usrp->set_time_now(0.0);
   tx_thread.create_thread(boost::bind(&transmit, usrp, tx_buff_ptrs,num_pulses_tx,waveform_data.size(),tx_start_time));
-  // transmit(usrp, tx_buff_ptrs, num_pulses_tx, waveform_data.size(),
-          //  tx_start_time);
+  size_t n = receive(usrp,rx_buff_ptrs, num_samp_rx,rx_start_time);
+
+  tx_thread.join_all();
+  
+
+  // TODO: Make this an option
+  std::ofstream outfile("/home/shane/gui_output.dat", std::ios::out | std::ios::binary);
+  outfile.write((char*)rx_buff->data(), sizeof(std::complex<float>) * rx_buff->size());
+  outfile.close();
+
   std::cout << "Transmission successful" << std::endl;
+
+  delete rx_buff;
+  delete tx_buff;
 }
 
 void RadarWindow::on_waveform_update_button_clicked() {
