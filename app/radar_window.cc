@@ -106,6 +106,8 @@ RadarWindow::RadarWindow(QWidget *parent)
 RadarWindow::~RadarWindow() { delete ui; }
 
 void RadarWindow::on_start_button_clicked() {
+  update_usrp();
+  update_waveform();
   // Set up Tx buffer
   boost::thread_group tx_thread;
   Eigen::ArrayXcf waveform_data = waveform.step().cast<std::complex<float>>();
@@ -139,18 +141,7 @@ void RadarWindow::on_start_button_clicked() {
   delete tx_buff;
 }
 
-void RadarWindow::on_waveform_update_button_clicked() {
-  double bandwidth = ui->bandwidth->text().toDouble();
-  double pulse_width = ui->pulse_width->text().toDouble();
-  double prf = ui->prf->text().toDouble();
-  double samp_rate = ui->samp_rate->text().toDouble();
-
-  waveform = plasma::LinearFMWaveform(bandwidth, pulse_width, prf, samp_rate);
-
-  std::cout << "Waveform successfully configured" << std::endl;
-}
-
-void RadarWindow::on_usrp_update_button_clicked() {
+void RadarWindow::update_usrp() {
   // Tx parameters
   tx_rate = ui->tx_rate->text().toDouble();
   tx_freq = ui->tx_freq->text().toDouble();
@@ -188,4 +179,26 @@ void RadarWindow::on_usrp_update_button_clicked() {
   } catch (const std::exception &e) {
     UHD_LOG_ERROR("RADAR_WINDOW", e.what());
   }
+
+}
+
+void RadarWindow::update_waveform() {
+  double bandwidth = ui->bandwidth->text().toDouble();
+  double pulse_width = ui->pulse_width->text().toDouble();
+  double prf = ui->prf->text().toDouble();
+  double samp_rate = ui->samp_rate->text().toDouble();
+
+  waveform = plasma::LinearFMWaveform(bandwidth, pulse_width, prf, samp_rate);
+
+  std::cout << "Waveform successfully configured" << std::endl;
+}
+
+void RadarWindow::on_waveform_update_button_clicked() {
+  update_waveform();
+  
+}
+
+void RadarWindow::on_usrp_update_button_clicked() {
+  update_usrp();
+  
 }

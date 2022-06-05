@@ -19,6 +19,8 @@ class RadarWindow : public QMainWindow {
  public:
   explicit RadarWindow(QWidget *parent = 0);
   ~RadarWindow() override;
+  void update_usrp();
+  void update_waveform();
 
   // Objects
   uhd::usrp::multi_usrp::sptr usrp;
