@@ -21,7 +21,7 @@ void transmit(uhd::usrp::multi_usrp::sptr usrp,
   static uhd::tx_metadata_t tx_md;
   tx_md.start_of_burst = true;
   tx_md.end_of_burst = false;
-  tx_md.has_time_spec = true;
+  tx_md.has_time_spec = (start_time.get_real_secs() > 0 ? true : false);
   tx_md.time_spec = start_time;
 
   for (size_t ipulse = 0; ipulse < num_pulses; ipulse++) {
@@ -65,7 +65,7 @@ long int receive(uhd::usrp::multi_usrp::sptr usrp,
       uhd::stream_cmd_t::STREAM_MODE_NUM_SAMPS_AND_DONE);
   stream_cmd.num_samps = num_samps;
   stream_cmd.time_spec = start_time;
-  stream_cmd.stream_now = false;
+  stream_cmd.stream_now = (start_time.get_real_secs() > 0 ? false : true);
   rx_stream->issue_stream_cmd(stream_cmd);
 
   size_t max_num_samps = rx_stream->get_max_num_samps();
@@ -116,6 +116,7 @@ void RadarWindow::on_start_button_clicked() {
   static bool first = true;
   update_usrp();
   update_waveform();
+
   // Set up Tx buffer
   boost::thread_group tx_thread;
   Eigen::ArrayXcf waveform_data = waveform.step().cast<std::complex<float>>();
@@ -123,7 +124,6 @@ void RadarWindow::on_start_button_clicked() {
       new std::vector<std::complex<float>>(
           waveform_data.data(), waveform_data.data() + waveform_data.size());
   std::vector<std::complex<float> *> tx_buff_ptrs;
-  tx_buff_ptrs.clear();
   tx_buff_ptrs.push_back(&tx_buff->front());
 
   // Set up Rx buffer
@@ -131,16 +131,29 @@ void RadarWindow::on_start_button_clicked() {
   std::vector<std::complex<float> *> rx_buff_ptrs;
   std::vector<std::complex<float>> *rx_buff =
       new std::vector<std::complex<float>>(num_samp_rx, 0);
-  rx_buff_ptrs.clear();
   rx_buff_ptrs.push_back(&rx_buff->front());
+  // For unknown reasons, the first call to transmit() and receive() has a
+  // different delay than on subsequent calls. The code below transmits and
+  // receives a PRI of zeros to get a consistent delay. for the rest of the
+  // collection interval
+  if (first) {
+    first = false;
+    std::vector<std::complex<float> *> temp_tx_buff_ptrs;
+    std::vector<std::complex<float>> *temp_tx_buff =
+        new std::vector<std::complex<float>>(waveform_data.size(), 0);
+    temp_tx_buff_ptrs.push_back(&tx_buff->front());
+    tx_thread.create_thread(boost::bind(&transmit, usrp, temp_tx_buff_ptrs, 1,
+                                        waveform_data.size(), 0.0));
+    size_t n = receive(usrp, rx_buff_ptrs, waveform_data.size(), 0.0);
+    tx_thread.join_all();
+  }
 
+  // Simultaneously transmit and receive the data
   uhd::time_spec_t time_now = usrp->get_time_now();
-
   tx_thread.create_thread(boost::bind(&transmit, usrp, tx_buff_ptrs,
                                       num_pulses_tx, waveform_data.size(),
                                       time_now + tx_start_time));
   size_t n = receive(usrp, rx_buff_ptrs, num_samp_rx, time_now + rx_start_time);
-
   tx_thread.join_all();
 
   // TODO: Make this an option in the gui
@@ -149,8 +162,7 @@ void RadarWindow::on_start_button_clicked() {
   // outfile.write((char *)rx_buff->data(),
   //               sizeof(std::complex<float>) * rx_buff->size());
   // outfile.close();
-
-  std::cout << "Transmission successful" << std::endl;
+  // std::cout << "Transmission successful" << std::endl;
 
   // Just plot the first pulse for now
   size_t nplot = num_samp_rx / num_pulses_tx;
