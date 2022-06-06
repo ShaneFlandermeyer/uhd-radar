@@ -9,6 +9,10 @@ add_executable(radar_gui
   main.cc
   radar_window.cc)
 target_link_libraries(radar_gui PUBLIC uhd_radar)
+
+add_executable(delay_cal
+  delay_cal.cc)
+target_link_libraries(delay_cal PUBLIC uhd_radar)
 # set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 # add_executable(plasma-loopback plasma-loopback.cc)

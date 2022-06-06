@@ -43,22 +43,20 @@ void RadarWindow::on_start_button_clicked() {
   static bool first = true;
   update_usrp();
   update_waveform();
+  boost::thread_group tx_thread;
 
   // Set up Tx buffer
-  boost::thread_group tx_thread;
   Eigen::ArrayXcf waveform_data = waveform.step().cast<std::complex<float>>();
-  std::vector<std::complex<float>> *tx_buff =
-      new std::vector<std::complex<float>>(
+  std::vector<std::complex<float>> tx_buff(
           waveform_data.data(), waveform_data.data() + waveform_data.size());
   std::vector<std::complex<float> *> tx_buff_ptrs;
-  tx_buff_ptrs.push_back(&tx_buff->front());
+  tx_buff_ptrs.push_back(&tx_buff.front());
 
   // Set up Rx buffer
   size_t num_samp_rx = waveform_data.size() * num_pulses_tx;
   std::vector<std::complex<float> *> rx_buff_ptrs;
-  std::vector<std::complex<float>> *rx_buff =
-      new std::vector<std::complex<float>>(num_samp_rx, 0);
-  rx_buff_ptrs.push_back(&rx_buff->front());
+  std::vector<std::complex<float>> rx_buff(num_samp_rx, 0);
+  rx_buff_ptrs.push_back(&rx_buff.front());
   // For unknown reasons, the first call to transmit() and receive() has a
   // different delay than on subsequent calls. The code below transmits and
   // receives a PRI of zeros to get a consistent delay for the rest of the
@@ -90,8 +88,8 @@ void RadarWindow::on_start_button_clicked() {
   if (ui->file_write_checkbox->isChecked()) {
     std::ofstream outfile(ui->file_line_edit->text().toStdString(),
                           std::ios::out | std::ios::binary);
-    outfile.write((char *)rx_buff->data(),
-                  sizeof(std::complex<float>) * rx_buff->size());
+    outfile.write((char *)rx_buff.data(),
+                  sizeof(std::complex<float>) * rx_buff.size());
     outfile.close();
   }
   // Just plot the first pulse for now
@@ -101,7 +99,7 @@ void RadarWindow::on_start_button_clicked() {
   std::vector<double> ydata(nplot);
   for (int i = 0; i < nplot; i++) {
     xdata[i] = i;
-    ydata[i] = abs(rx_buff->at(i));
+    ydata[i] = abs(rx_buff.at(i));
   }
   rx_data_curve->setSamples(xdata.data(), ydata.data(), nplot);
   rx_data_curve->attach(ui->rx_plot);
@@ -110,9 +108,6 @@ void RadarWindow::on_start_button_clicked() {
   ui->rx_plot->show();
 
   std::cout << "Transmission successful" << std::endl << std::endl;
-
-  delete rx_buff;
-  delete tx_buff;
 }
 
 void RadarWindow::update_usrp() {
