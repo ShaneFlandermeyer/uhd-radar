@@ -134,14 +134,14 @@ void RadarWindow::on_start_button_clicked() {
   rx_buff_ptrs.push_back(&rx_buff->front());
   // For unknown reasons, the first call to transmit() and receive() has a
   // different delay than on subsequent calls. The code below transmits and
-  // receives a PRI of zeros to get a consistent delay. for the rest of the
+  // receives a PRI of zeros to get a consistent delay for the rest of the
   // collection interval
   if (first) {
     first = false;
     std::vector<std::complex<float> *> temp_tx_buff_ptrs;
     std::vector<std::complex<float>> *temp_tx_buff =
         new std::vector<std::complex<float>>(waveform_data.size(), 0);
-    temp_tx_buff_ptrs.push_back(&tx_buff->front());
+    temp_tx_buff_ptrs.push_back(&temp_tx_buff->front());
     tx_thread.create_thread(boost::bind(&transmit, usrp, temp_tx_buff_ptrs, 1,
                                         waveform_data.size(), 0.0));
     size_t n = receive(usrp, rx_buff_ptrs, waveform_data.size(), 0.0);
