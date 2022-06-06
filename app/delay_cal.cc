@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
   tx_buff_ptrs.push_back(&tx_buff->front());
 
   // Set up Rx buffer
-  size_t num_samp_rx = waveform_data.size();
+  size_t num_samp_rx = waveform_data.size() + 82;
   std::vector<std::complex<float> *> rx_buff_ptrs;
   std::vector<std::complex<float>> rx_buff(num_samp_rx, 0);
   rx_buff_ptrs.push_back(&rx_buff.front());
@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
                                       1, waveform_data.size(),
                                       time_now + start_time));
   long int n = uhd::radar::receive(usrp, rx_buff_ptrs, num_samp_rx,
-                      time_now + start_time + 82 / rate);
+                                   time_now + start_time);
   tx_thread.join_all();
 
   // Create the matched filter
@@ -121,20 +121,26 @@ int main(int argc, char *argv[]) {
   size_t delay = argmax - h.size();
 
   // Plot the pulse
-  QApplication app(argc, argv);
-  Window window;
-  double xdata[n];
-  double ydata[n];
-  for (int i = 0; i < n; i++) {
-    xdata[i] = i;
-    ydata[i] = abs(rx_buff.at(i));
-  }
-  window.curve->setSamples(xdata, ydata, n);
-  window.curve->attach(window.plot);
-  // window.plot->setAxisScale(QwtPlot::yLeft, ymax - 70, ymax + 5);
-  window.plot->replot();
-  window.plot->show();
-  app.exec();
+  // QApplication app(argc, argv);
+  // Window window;
+  // double xdata[n];
+  // double ydata[n];
+  // for (int i = 0; i < n; i++) {
+  //   xdata[i] = i;
+  //   ydata[i] = abs(rx_buff.at(i));
+  // }
+  // window.curve->setSamples(xdata, ydata, n);
+  // window.curve->attach(window.plot);
+  // // window.plot->setAxisScale(QwtPlot::yLeft, ymax - 70, ymax + 5);
+  // window.plot->replot();
+  // window.plot->show();
+  // app.exec();
+
+  std::ofstream outfile("/home/shane/cal.dat",
+                        std::ios::out | std::ios::binary);
+  outfile.write((char *)(rx_buff.data() + 82),
+                sizeof(std::complex<float>) * (rx_buff.size() - 82));
+  outfile.close();
 
   return EXIT_SUCCESS;
 }
