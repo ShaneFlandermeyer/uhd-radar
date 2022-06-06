@@ -13,38 +13,39 @@ endif()
 # ##############################################################################
 # Build options
 # ##############################################################################
-option(ENABLE_OPENMP "ENABLE_OPENMP" ON)
-option(ENABLE_MATPLOT++ "ENABLE_MATPLOT++" ON)
+
 
 ########################################################################
 # Configure Compiler
 ########################################################################
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 # Set up the build environment
 # Use the shared UHD libs
 option(UHD_USE_STATIC_LIBS OFF)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+set(CMAKE_AUTOUIC_SEARCH_PATHS "${CMAKE_SOURCE_DIR}/ui")
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
 
 ########################################################################
 # Find build dependencies
 ########################################################################
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
-find_package(plasma-dsp REQUIRED)
+find_package(plasma_dsp REQUIRED)
 find_package(UHD 4.0.0 REQUIRED)
+find_package(Qt5 COMPONENTS Widgets)
+find_package(Qwt)
+find_package(OpenMP)
 
-# TODO: I don't think I should have to do this, since plasma-dsp already links
-# to these in its own project
-target_link_libraries(plasma-dsp INTERFACE Eigen3::Eigen fftw3)
-
-if(${ENABLE_OPENMP})
-  find_package(OpenMP REQUIRED)
-  target_link_libraries(plasma-dsp INTERFACE OpenMP::OpenMP_CXX)
+# Output results for optional packages
+if (${Qt5_FOUND})
+  message(STATUS "Found Qt5")
 endif()
-
-if(${ENABLE_MATPLOT++})
-  find_package(Matplot++ REQUIRED)
-  set(Matplot++_FOUND TRUE)
+if (${OpenMP_FOUND})
+  message(STATUS "Found OpenMP")
 endif()
-
 
 ########################################################################
 # Set up UHD/Boost
@@ -63,24 +64,9 @@ include_directories(
   ${Boost_INCLUDE_DIRS}
   ${UHD_INCLUDE_DIRS}
 )
-link_directories(${Boost_LIBRARY_DIRS})
-
-########################################################################
-# Set up libsigmf
-########################################################################
-# find_package(libsigmf REQUIRED)
-message(STATUS "System-wide libsigmf not found. Building from submodule")
-message(STATUS "TODO: Add an option for system-wide installation")
-set(LIBSIGMF_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/libsigmf/include
-CACHE PATH "libsigmf include directory")
-if (NOT IS_DIRECTORY ${LIBSIGMF_INCLUDE_DIR})
-  message("sigmf submodule not found! Downloading...")
-  execute_process(COMMAND git submodule update --init -- external/libsigmf
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-endif(NOT IS_DIRECTORY ${LIBSIGMF_INCLUDE_DIR})
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/libsigmf
-        ${CMAKE_CURRENT_BINARY_DIR}/libsigmf-build
-        EXCLUDE_FROM_ALL)
+# Shared library case: All we need to do is link against UHD and Boost
+message(STATUS "Linking against shared UHD library.")
+link_libraries(${UHD_LIBRARIES} ${Boost_LIBRARIES})
 
 ########################################################################
 # Add subdirectories

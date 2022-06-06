@@ -3,24 +3,27 @@ list(APPEND UHD_RADAR_SOURCES
 receive.cc
 transmit.cc
 uhd_utils.cc)
+
 # Prepend full path to the above sources
 list(TRANSFORM UHD_RADAR_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/)
 set(UHD_RADAR_SOURCES "${UHD_RADAR_SOURCES}" PARENT_SCOPE)
+
 # Create the uhd-radar library
-add_library(uhd-radar SHARED ${UHD_RADAR_SOURCES})
-
-
+add_library(uhd_radar SHARED ${UHD_RADAR_SOURCES})
 
 # Specify the library include dirs
-target_include_directories(uhd-radar
-  PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-  PUBLIC $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+target_include_directories(uhd_radar
+  PUBLIC $<BUILD_INTERFACE:
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_BINARY_DIR}/include
+    ${QWT_INCLUDE_DIR}>
   PUBLIC $<INSTALL_INTERFACE:include>
 )
 
 # Link any necessary dependency libraries
-# target_link_libraries(uhd-radar)
-
-target_include_directories(uhd-radar INTERFACE
-    $<BUILD_INTERFACE:${JSON_INCLUDE_DIR}>
-  )
+target_link_libraries(uhd_radar PUBLIC 
+  plasma_dsp 
+  ${UHD_LIBRARIES} 
+  ${QWT_LIBRARY} 
+  Qt5::Widgets
+)

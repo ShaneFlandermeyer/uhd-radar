@@ -7,34 +7,19 @@ namespace uhd {
 namespace radar {
 
 /**
- * @brief Transmit a given number of pulses at a single PRF
+ * @brief Transmit pulsed data using a USRP device
  *
- * @param tx_stream UHD tx streamer object
- * @param tx_data A vector of vectors of complex numbers, where each "inner"
- * vector stores the waveform samples for a single channel
- * @param prf The pulse repetition frequency (Hz)
- * @param num_pulses_to_send Number of pulses to transmit
- * @param start_time Time to wait before the first transmission (s)
+ * @param usrp The device to be used
+ * @param buff_ptrs Data to be transmitted through each channel
+ * @param num_pulses Number of pulses (iterations through buff_ptrs) to transmit
+ * @param num_samps_pulse Length of each data vector in buff_ptrs
+ * @param start_time Time to send the first pulse in the sequence, relative to
+ * the USRP time source. If this value is zero (or negative), the data is sent
+ * immediately.
  */
-void transmit(const uhd::tx_streamer::sptr &tx_stream,
-              std::vector<std::vector<std::complex<double>>> &tx_data,
-              double prf, size_t num_pulses_to_send, double start_time);
-
-/**
- * @brief Transmit a given number of pulses at a single PRF
- *
- * @param tx_stream UHD tx streamer object
- * @param tx_data A vector of vectors of complex numbers, where each "inner"
- * vector stores the waveform samples for a single channel
- * @param prf_schedule A vector of pulse repetition frequencies to be
- * transmitted sequentially (Hz)
- * @param num_pulses_to_send Number of pulses to transmit
- * @param start_time Time to wait before the first transmission (s)
- */
-void transmit(uhd::tx_streamer::sptr tx_stream,
-              std::vector<std::vector<std::complex<double>>> tx_data,
-              std::vector<double> prf_schedule, size_t num_pulses_to_send,
-              double start_time);
+void transmit(uhd::usrp::multi_usrp::sptr usrp,
+              std::vector<std::complex<float> *> buff_ptrs, size_t num_pulses,
+              size_t num_samps_pulse, uhd::time_spec_t start_time);
 
 }  // namespace radar
 }  // namespace uhd

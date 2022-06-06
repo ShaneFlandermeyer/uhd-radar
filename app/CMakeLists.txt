@@ -1,27 +1,19 @@
-if (NOT UHD_USE_STATIC_LIBS)
-  # Shared library case: All we need to do is link against UHD and Boost
-  message(STATUS "Linking against shared UHD library.")
-  link_libraries(${UHD_LIBRARIES} ${Boost_LIBRARIES})
-else (NOT UHD_USE_STATIC_LIBS)
-  # Static library case: We need to link to the static library AND manually link
-  # to its dependencies
-  message(STATUS "Linking against static UHD library.")
-  link_libraries(
-  ${UHD_STATIC_LIB_LINK_FLAG}
-  ${UHD_STATIC_LIB_DEPS})
-endif (NOT UHD_USE_STATIC_LIBS)
+
 ########################################################################
 # Add executables
 ########################################################################
 add_executable(init_usrp init_usrp.cc)
-target_link_libraries(init_usrp plasma-dsp)
+target_link_libraries(init_usrp PUBLIC uhd_radar)
 
-add_executable(plasma-loopback plasma-loopback.cc)
-target_link_libraries(plasma-loopback plasma-dsp uhd-radar)
+add_executable(radar_gui
+  main.cc
+  radar_window.cc)
+target_link_libraries(radar_gui PUBLIC uhd_radar)
+# set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-if (${Matplot++_FOUND})
-  target_link_libraries(plasma-loopback Matplot++::matplot)
-endif()
+# add_executable(plasma-loopback plasma-loopback.cc)
+# target_link_libraries(plasma-loopback plasma_dsp uhd-radar)
+
 
 # # init_usrp is super basic and doesn't need any sources
 # add_executable(init_usrp init_usrp.cc)
