@@ -48,7 +48,7 @@ void RadarWindow::on_start_button_clicked() {
   // Set up Tx buffer
   Eigen::ArrayXcf waveform_data = waveform.step().cast<std::complex<float>>();
   std::vector<std::complex<float>> tx_buff(
-          waveform_data.data(), waveform_data.data() + waveform_data.size());
+      waveform_data.data(), waveform_data.data() + waveform_data.size());
   std::vector<std::complex<float> *> tx_buff_ptrs;
   tx_buff_ptrs.push_back(&tx_buff.front());
 

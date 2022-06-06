@@ -6,15 +6,19 @@ namespace radar {
 void transmit(uhd::usrp::multi_usrp::sptr usrp,
               std::vector<std::complex<float> *> buff_ptrs, size_t num_pulses,
               size_t num_samps_pulse, uhd::time_spec_t start_time) {
-  static bool first = true;
+  // TODO: Beware a bug on X3xx radios where recreation of streams will fail
+  // after 256 iterations. It might be necessary to make the streamer static so
+  // it is only created once. See
+  // https://marc.info/?l=usrp-users&m=145047669625107&w=1 for bug info, and
+  // https://github.com/jonasmc83/USRP_Software_defined_radar for a possible
+  // solution
 
-  static uhd::stream_args_t tx_stream_args("fc32", "sc16");
-  static uhd::tx_streamer::sptr tx_stream;
-  if (first) {
-    tx_stream_args.channels.push_back(0);
-    tx_stream = usrp->get_tx_stream(tx_stream_args);
-    first = false;
-  }
+  // static bool first = true;
+  uhd::stream_args_t tx_stream_args("fc32", "sc16");
+  uhd::tx_streamer::sptr tx_stream;
+
+  tx_stream_args.channels.push_back(0);
+  tx_stream = usrp->get_tx_stream(tx_stream_args);
 
   // Create metadata structure
   static uhd::tx_metadata_t tx_md;
