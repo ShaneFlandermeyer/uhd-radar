@@ -1,26 +1,43 @@
 #include "radar_window.h"
 
 #include <qwt/qwt_plot.h>
-#include "transmit.h"
-#include "receive.h"
+
+#include <QFileDialog>
 
 #include "../ui/ui_radar_window.h"
+#include "receive.h"
+#include "transmit.h"
 
 RadarWindow::RadarWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::RadarWindow) {
   ui->setupUi(this);
+  // Signals and slots
   connect(ui->usrp_update_button, SIGNAL(clicked()), this,
           SLOT(on_usrp_update_button_clicked()), Qt::UniqueConnection);
   connect(ui->waveform_update_button, SIGNAL(clicked()), this,
           SLOT(on_waveform_update_button_clicked()), Qt::UniqueConnection);
   connect(ui->start_button, SIGNAL(clicked()), this,
           SLOT(on_start_button_clicked()), Qt::UniqueConnection);
+  connect(ui->file_button, SIGNAL(clicked()), this,
+          SLOT(on_file_button_clicked()), Qt::UniqueConnection);
+
+  // Qwt plotting setup
   ui->rx_plot->setTitle("Rx data");
   rx_data_curve = new QwtPlotCurve();
   rx_data_curve->setPen(QPen(Qt::red));
 }
 
 RadarWindow::~RadarWindow() { delete ui; }
+
+void RadarWindow::on_file_button_clicked() {
+  QFileDialog dialog(this);
+  dialog.setFileMode(QFileDialog::AnyFile);
+  QString filename;
+  if (dialog.exec()) {
+    filename = dialog.selectedFiles().first();
+    ui->file_line_edit->setText(filename);
+  }
+}
 
 void RadarWindow::on_start_button_clicked() {
   static bool first = true;
@@ -52,9 +69,11 @@ void RadarWindow::on_start_button_clicked() {
     std::vector<std::complex<float>> *temp_tx_buff =
         new std::vector<std::complex<float>>(waveform_data.size(), 0);
     temp_tx_buff_ptrs.push_back(&temp_tx_buff->front());
-    tx_thread.create_thread(boost::bind(&uhd::radar::transmit, usrp, temp_tx_buff_ptrs, 1,
+    tx_thread.create_thread(boost::bind(&uhd::radar::transmit, usrp,
+                                        temp_tx_buff_ptrs, 1,
                                         waveform_data.size(), 0.0));
-    size_t n = uhd::radar::receive(usrp, rx_buff_ptrs, waveform_data.size(), 0.0);
+    size_t n =
+        uhd::radar::receive(usrp, rx_buff_ptrs, waveform_data.size(), 0.0);
     tx_thread.join_all();
   }
 
@@ -63,17 +82,18 @@ void RadarWindow::on_start_button_clicked() {
   tx_thread.create_thread(boost::bind(&uhd::radar::transmit, usrp, tx_buff_ptrs,
                                       num_pulses_tx, waveform_data.size(),
                                       time_now + tx_start_time));
-  size_t n = uhd::radar::receive(usrp, rx_buff_ptrs, num_samp_rx, time_now + rx_start_time);
+  size_t n = uhd::radar::receive(usrp, rx_buff_ptrs, num_samp_rx,
+                                 time_now + rx_start_time);
   tx_thread.join_all();
 
   // TODO: Make this an option in the gui
-  // std::ofstream outfile("/home/shane/gui_output.dat",
-  //                       std::ios::out | std::ios::binary);
-  // outfile.write((char *)rx_buff->data(),
-  //               sizeof(std::complex<float>) * rx_buff->size());
-  // outfile.close();
-  
-
+  if (ui->file_write_checkbox->isChecked()) {
+    std::ofstream outfile(ui->file_line_edit->text().toStdString(),
+                          std::ios::out | std::ios::binary);
+    outfile.write((char *)rx_buff->data(),
+                  sizeof(std::complex<float>) * rx_buff->size());
+    outfile.close();
+  }
   // Just plot the first pulse for now
   size_t nplot = num_samp_rx / num_pulses_tx;
   // size_t nplot = 300;
