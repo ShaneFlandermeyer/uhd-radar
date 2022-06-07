@@ -38,6 +38,7 @@ find_package(UHD 4.0.0 REQUIRED)
 find_package(Qt5 COMPONENTS Widgets)
 find_package(Qwt)
 find_package(OpenMP)
+find_package(nlohmann_json REQUIRED)
 
 # Output results for optional packages
 if (${Qt5_FOUND})
