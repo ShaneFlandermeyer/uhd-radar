@@ -131,9 +131,12 @@ void RadarWindow::update_usrp() {
   // Configure the USRP device
   static bool first = true;
   try {
-    if (first) {
-      usrp = uhd::usrp::multi_usrp::make(tx_args);
+    // Only need to reset the USRP sptr on the first run or whenever the sample
+    // rate change requires a different master clock rate
+    if (first or tx_rate != usrp->get_tx_rate() or rx_rate != usrp->get_rx_rate()) {
       first = false;
+      usrp.reset();
+      usrp = uhd::usrp::multi_usrp::make(tx_args);
     }
     usrp->set_tx_rate(tx_rate);
     usrp->set_rx_rate(rx_rate);
@@ -141,8 +144,7 @@ void RadarWindow::update_usrp() {
     usrp->set_rx_freq(rx_freq);
     usrp->set_tx_gain(tx_gain);
     usrp->set_rx_gain(rx_gain);
-    // Sleep for 1 second to let the USRP settle
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    // TODO: Add LO lock check for changing center frequency
 
     std::cout << "USRP successfully configured" << std::endl;
   } catch (const std::exception &e) {

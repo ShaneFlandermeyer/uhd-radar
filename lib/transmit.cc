@@ -17,12 +17,11 @@ void transmit(uhd::usrp::multi_usrp::sptr usrp,
 
   // static bool first = true;
   static uhd::stream_args_t tx_stream_args("fc32", "sc16");
-  static uhd::tx_streamer::sptr tx_stream;
+  uhd::tx_streamer::sptr tx_stream;
   // tx_stream.reset();
   if (first) {
     first = false;
     tx_stream_args.channels.push_back(0);
-    // tx_stream = usrp->get_tx_stream(tx_stream_args);
   }
   tx_stream = usrp->get_tx_stream(tx_stream_args);
   // Create metadata structure
