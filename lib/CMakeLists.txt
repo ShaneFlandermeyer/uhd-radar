@@ -26,4 +26,5 @@ target_link_libraries(uhd_radar PUBLIC
   ${UHD_LIBRARIES} 
   ${QWT_LIBRARY} 
   Qt5::Widgets
+  nlohmann_json::nlohmann_json
 )

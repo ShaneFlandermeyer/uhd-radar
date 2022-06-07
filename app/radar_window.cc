@@ -1,12 +1,12 @@
 #include "radar_window.h"
 
-#include <qwt/qwt_plot.h>
+// #include <qwt/qwt_plot.h>
 
-#include <QFileDialog>
+// #include <QFileDialog>
 
-#include "../ui/ui_radar_window.h"
-#include "receive.h"
-#include "transmit.h"
+// #include "../ui/ui_radar_window.h"
+// #include "receive.h"
+// #include "transmit.h"
 
 RadarWindow::RadarWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::RadarWindow) {
@@ -29,6 +29,32 @@ RadarWindow::RadarWindow(QWidget *parent)
 
 RadarWindow::~RadarWindow() { delete ui; }
 
+void RadarWindow::read_calibration_json() {
+  const std::string homedir = getenv("HOME");
+  std::ifstream file(homedir + "/.uhd/delay_calibration.json");
+  nlohmann::json json;
+  delay_samps = 0;
+  if (file) {
+    file >> json;
+    std::string radio_type = usrp->get_mboard_name();
+    for (auto &config : json[radio_type]) {
+      if (config["samp_rate"] == usrp->get_tx_rate() and
+          config["master_clock_rate"] == usrp->get_master_clock_rate()) {
+        delay_samps = config["delay"];
+        break;
+      }
+    }
+    if (delay_samps == 0)
+      UHD_LOG_INFO("RadarWindow",
+                  "Calibration file found, but no data exists for this "
+                  "combination of radio, master clock rate, and sample rate");
+  } else {
+    UHD_LOG_INFO("RadarWindow", "No calibration file found");
+  }
+
+  file.close();
+}
+
 void RadarWindow::on_file_button_clicked() {
   QFileDialog dialog(this);
   dialog.setFileMode(QFileDialog::AnyFile);
@@ -43,39 +69,20 @@ void RadarWindow::on_start_button_clicked() {
   static bool first = true;
   update_usrp();
   update_waveform();
+  boost::thread_group tx_thread;
 
   // Set up Tx buffer
-  boost::thread_group tx_thread;
   Eigen::ArrayXcf waveform_data = waveform.step().cast<std::complex<float>>();
-  std::vector<std::complex<float>> *tx_buff =
-      new std::vector<std::complex<float>>(
-          waveform_data.data(), waveform_data.data() + waveform_data.size());
+  std::vector<std::complex<float>> tx_buff(
+      waveform_data.data(), waveform_data.data() + waveform_data.size());
   std::vector<std::complex<float> *> tx_buff_ptrs;
-  tx_buff_ptrs.push_back(&tx_buff->front());
+  tx_buff_ptrs.push_back(&tx_buff.front());
 
   // Set up Rx buffer
-  size_t num_samp_rx = waveform_data.size() * num_pulses_tx;
+  size_t num_samp_rx = waveform_data.size() * num_pulses_tx + delay_samps;
   std::vector<std::complex<float> *> rx_buff_ptrs;
-  std::vector<std::complex<float>> *rx_buff =
-      new std::vector<std::complex<float>>(num_samp_rx, 0);
-  rx_buff_ptrs.push_back(&rx_buff->front());
-  // For unknown reasons, the first call to transmit() and receive() has a
-  // different delay than on subsequent calls. The code below transmits and
-  // receives a PRI of zeros to get a consistent delay for the rest of the
-  // collection interval
-  if (first) {
-    first = false;
-    std::vector<std::complex<float> *> temp_tx_buff_ptrs;
-    std::vector<std::complex<float>> *temp_tx_buff =
-        new std::vector<std::complex<float>>(waveform_data.size(), 0);
-    temp_tx_buff_ptrs.push_back(&temp_tx_buff->front());
-    tx_thread.create_thread(boost::bind(&uhd::radar::transmit, usrp,
-                                        temp_tx_buff_ptrs, 1,
-                                        waveform_data.size(), 0.0));
-    size_t n =
-        uhd::radar::receive(usrp, rx_buff_ptrs, waveform_data.size(), 0.0);
-    tx_thread.join_all();
-  }
+  std::vector<std::complex<float>> rx_buff(num_samp_rx, 0);
+  rx_buff_ptrs.push_back(&rx_buff.front());
 
   // Simultaneously transmit and receive the data
   uhd::time_spec_t time_now = usrp->get_time_now();
@@ -85,34 +92,32 @@ void RadarWindow::on_start_button_clicked() {
   size_t n = uhd::radar::receive(usrp, rx_buff_ptrs, num_samp_rx,
                                  time_now + rx_start_time);
   tx_thread.join_all();
+  rx_buff.erase(rx_buff.begin(), rx_buff.begin() + delay_samps);
+  // for (size_t i = 0; i < rx_buff_ptrs.size(); i++) {
+  //   rx_buff_ptrs[i] += delay_samps;
+  // }
 
-  // TODO: Make this an option in the gui
   if (ui->file_write_checkbox->isChecked()) {
     std::ofstream outfile(ui->file_line_edit->text().toStdString(),
                           std::ios::out | std::ios::binary);
-    outfile.write((char *)rx_buff->data(),
-                  sizeof(std::complex<float>) * rx_buff->size());
+    outfile.write((char *)rx_buff.data(),
+                  sizeof(std::complex<float>) * rx_buff.size());
     outfile.close();
   }
   // Just plot the first pulse for now
   size_t nplot = num_samp_rx / num_pulses_tx;
-  // size_t nplot = 300;
   std::vector<double> xdata(nplot);
   std::vector<double> ydata(nplot);
   for (int i = 0; i < nplot; i++) {
     xdata[i] = i;
-    ydata[i] = abs(rx_buff->at(i));
+    ydata[i] = abs(rx_buff.at(i));
   }
   rx_data_curve->setSamples(xdata.data(), ydata.data(), nplot);
   rx_data_curve->attach(ui->rx_plot);
-
   ui->rx_plot->replot();
   ui->rx_plot->show();
 
   std::cout << "Transmission successful" << std::endl << std::endl;
-
-  delete rx_buff;
-  delete tx_buff;
 }
 
 void RadarWindow::update_usrp() {
@@ -136,9 +141,13 @@ void RadarWindow::update_usrp() {
   // Configure the USRP device
   static bool first = true;
   try {
-    if (first) {
-      usrp = uhd::usrp::multi_usrp::make(tx_args);
+    // Only need to reset the USRP sptr on the first run or whenever the sample
+    // rate change requires a different master clock rate
+    if (first or tx_rate != usrp->get_tx_rate() or
+        rx_rate != usrp->get_rx_rate()) {
       first = false;
+      usrp.reset();
+      usrp = uhd::usrp::multi_usrp::make(tx_args);
     }
     usrp->set_tx_rate(tx_rate);
     usrp->set_rx_rate(rx_rate);
@@ -146,8 +155,8 @@ void RadarWindow::update_usrp() {
     usrp->set_rx_freq(rx_freq);
     usrp->set_tx_gain(tx_gain);
     usrp->set_rx_gain(rx_gain);
-    // Sleep for 1 second to let the USRP settle
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    // TODO: Add LO lock check for changing center frequency
+    read_calibration_json();
 
     std::cout << "USRP successfully configured" << std::endl;
   } catch (const std::exception &e) {
