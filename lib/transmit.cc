@@ -13,13 +13,18 @@ void transmit(uhd::usrp::multi_usrp::sptr usrp,
   // https://github.com/jonasmc83/USRP_Software_defined_radar for a possible
   // solution
 
+  static bool first = true;
+
   // static bool first = true;
-  uhd::stream_args_t tx_stream_args("fc32", "sc16");
-  uhd::tx_streamer::sptr tx_stream;
-
-  tx_stream_args.channels.push_back(0);
+  static uhd::stream_args_t tx_stream_args("fc32", "sc16");
+  static uhd::tx_streamer::sptr tx_stream;
+  // tx_stream.reset();
+  if (first) {
+    first = false;
+    tx_stream_args.channels.push_back(0);
+    // tx_stream = usrp->get_tx_stream(tx_stream_args);
+  }
   tx_stream = usrp->get_tx_stream(tx_stream_args);
-
   // Create metadata structure
   static uhd::tx_metadata_t tx_md;
   tx_md.start_of_burst = true;

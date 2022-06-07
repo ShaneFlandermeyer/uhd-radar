@@ -29,7 +29,6 @@ class Window : public QWidget {
 
 int main(int argc, char *argv[]) {
   uhd::set_thread_priority_safe();
-  
 
   // // Initialzie the USRP object
   // double rate = 10e6;
@@ -136,17 +135,28 @@ int main(int argc, char *argv[]) {
   double tx_gain = 50;
   double rx_gain = 40;
   std::string args = "";
+  boost::thread_group tx_thread;
+  // usrp.reset();
+  
 
   std::vector<double> rates = {10e6, 20e6, 30e6, 40e6, 50e6};
+  
+  // std::vector<double> rates = {40e6};
   for (auto rate : rates) {
-    boost::thread_group tx_thread;
     uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(args);
+    // if (rate == 10e6) {
+    //   usrp->set_master_clock_rate(40e6);
+    // } else {
+    //   usrp->set_master_clock_rate(rate);
+    // }
+    
     usrp->set_tx_freq(freq);
     usrp->set_rx_freq(freq);
     usrp->set_tx_gain(tx_gain);
     usrp->set_rx_gain(rx_gain);
     usrp->set_tx_rate(rate);
     usrp->set_rx_rate(rate);
+    // std::this_thread::sleep_for(std::chrono::seconds(1));
     // Initialize the waveform object
     double bandwidth = 10e6;
     double pulse_width = 20e-6;
@@ -207,6 +217,14 @@ int main(int argc, char *argv[]) {
 
     size_t delay = argmax - h.size();
     std::cout << delay << std::endl;
+
+    std::string filename =
+        "/home/shane/cal_" + std::to_string((int)(rate / 1e6)) + ".dat";
+    std::ofstream outfile(filename, std::ios::out | std::ios::binary);
+    outfile.write((char *)rx_buff.data(),
+                  sizeof(std::complex<float>) * (rx_buff.size()));
+    outfile.close();
+    usrp.reset();
   }
 
   return EXIT_SUCCESS;

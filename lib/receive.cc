@@ -13,21 +13,24 @@ long int receive(uhd::usrp::multi_usrp::sptr usrp,
   // https://github.com/jonasmc83/USRP_Software_defined_radar for a possible
   // solution
 
-  bool first = true;
-  
+  static bool first = true;
 
-  size_t channels = buff_ptrs.size();
-  std::vector<size_t> channel_vec;
-  uhd::stream_args_t stream_args("fc32", "sc16");
+  static size_t channels = buff_ptrs.size();
+  static std::vector<size_t> channel_vec;
+  static uhd::stream_args_t stream_args("fc32", "sc16");
   uhd::rx_streamer::sptr rx_stream;
-
+  // rx_stream.reset();
+  if (first) {
+    first = false;
     if (channel_vec.size() == 0) {
       for (size_t i = 0; i < channels; i++) {
         channel_vec.push_back(i);
       }
     }
     stream_args.channels = channel_vec;
-    rx_stream = usrp->get_rx_stream(stream_args);
+    // rx_stream = usrp->get_rx_stream(stream_args);
+  }
+  rx_stream = usrp->get_rx_stream(stream_args);
 
   uhd::rx_metadata_t md;
 
