@@ -1,12 +1,12 @@
 #include "radar_window.h"
 
-#include <qwt/qwt_plot.h>
+// #include <qwt/qwt_plot.h>
 
-#include <QFileDialog>
+// #include <QFileDialog>
 
-#include "../ui/ui_radar_window.h"
-#include "receive.h"
-#include "transmit.h"
+// #include "../ui/ui_radar_window.h"
+// #include "receive.h"
+// #include "transmit.h"
 
 RadarWindow::RadarWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::RadarWindow) {
@@ -28,6 +28,32 @@ RadarWindow::RadarWindow(QWidget *parent)
 }
 
 RadarWindow::~RadarWindow() { delete ui; }
+
+void RadarWindow::read_calibration_json() {
+  const std::string homedir = getenv("HOME");
+  std::ifstream file(homedir + "/.uhd/delay_calibration.json");
+  nlohmann::json json;
+  delay_samps = 0;
+  if (file) {
+    file >> json;
+    std::string radio_type = usrp->get_mboard_name();
+    for (auto &config : json[radio_type]) {
+      if (config["samp_rate"] == usrp->get_tx_rate() and
+          config["master_clock_rate"] == usrp->get_master_clock_rate()) {
+        delay_samps = config["delay"];
+        break;
+      }
+    }
+    if (delay_samps == 0)
+      UHD_LOG_INFO("RadarWindow",
+                  "Calibration file found, but no data exists for this "
+                  "combination of radio, master clock rate, and sample rate");
+  } else {
+    UHD_LOG_INFO("RadarWindow", "No calibration file found");
+  }
+
+  file.close();
+}
 
 void RadarWindow::on_file_button_clicked() {
   QFileDialog dialog(this);
@@ -53,7 +79,7 @@ void RadarWindow::on_start_button_clicked() {
   tx_buff_ptrs.push_back(&tx_buff.front());
 
   // Set up Rx buffer
-  size_t num_samp_rx = waveform_data.size() * num_pulses_tx;
+  size_t num_samp_rx = waveform_data.size() * num_pulses_tx + delay_samps;
   std::vector<std::complex<float> *> rx_buff_ptrs;
   std::vector<std::complex<float>> rx_buff(num_samp_rx, 0);
   rx_buff_ptrs.push_back(&rx_buff.front());
@@ -66,6 +92,10 @@ void RadarWindow::on_start_button_clicked() {
   size_t n = uhd::radar::receive(usrp, rx_buff_ptrs, num_samp_rx,
                                  time_now + rx_start_time);
   tx_thread.join_all();
+  rx_buff.erase(rx_buff.begin(), rx_buff.begin() + delay_samps);
+  // for (size_t i = 0; i < rx_buff_ptrs.size(); i++) {
+  //   rx_buff_ptrs[i] += delay_samps;
+  // }
 
   if (ui->file_write_checkbox->isChecked()) {
     std::ofstream outfile(ui->file_line_edit->text().toStdString(),
@@ -113,7 +143,8 @@ void RadarWindow::update_usrp() {
   try {
     // Only need to reset the USRP sptr on the first run or whenever the sample
     // rate change requires a different master clock rate
-    if (first or tx_rate != usrp->get_tx_rate() or rx_rate != usrp->get_rx_rate()) {
+    if (first or tx_rate != usrp->get_tx_rate() or
+        rx_rate != usrp->get_rx_rate()) {
       first = false;
       usrp.reset();
       usrp = uhd::usrp::multi_usrp::make(tx_args);
@@ -125,6 +156,7 @@ void RadarWindow::update_usrp() {
     usrp->set_tx_gain(tx_gain);
     usrp->set_rx_gain(rx_gain);
     // TODO: Add LO lock check for changing center frequency
+    read_calibration_json();
 
     std::cout << "USRP successfully configured" << std::endl;
   } catch (const std::exception &e) {
