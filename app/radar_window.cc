@@ -57,23 +57,6 @@ void RadarWindow::on_start_button_clicked() {
   std::vector<std::complex<float> *> rx_buff_ptrs;
   std::vector<std::complex<float>> rx_buff(num_samp_rx, 0);
   rx_buff_ptrs.push_back(&rx_buff.front());
-  // For unknown reasons, the first call to transmit() and receive() has a
-  // different delay than on subsequent calls. The code below transmits and
-  // receives a PRI of zeros to get a consistent delay for the rest of the
-  // collection interval
-  if (first) {
-    first = false;
-    std::vector<std::complex<float> *> temp_tx_buff_ptrs;
-    std::vector<std::complex<float>> *temp_tx_buff =
-        new std::vector<std::complex<float>>(waveform_data.size(), 0);
-    temp_tx_buff_ptrs.push_back(&temp_tx_buff->front());
-    tx_thread.create_thread(boost::bind(&uhd::radar::transmit, usrp,
-                                        temp_tx_buff_ptrs, 1,
-                                        waveform_data.size(), 0.0));
-    size_t n =
-        uhd::radar::receive(usrp, rx_buff_ptrs, waveform_data.size(), 0.0);
-    tx_thread.join_all();
-  }
 
   // Simultaneously transmit and receive the data
   uhd::time_spec_t time_now = usrp->get_time_now();
@@ -84,7 +67,6 @@ void RadarWindow::on_start_button_clicked() {
                                  time_now + rx_start_time);
   tx_thread.join_all();
 
-  // TODO: Make this an option in the gui
   if (ui->file_write_checkbox->isChecked()) {
     std::ofstream outfile(ui->file_line_edit->text().toStdString(),
                           std::ios::out | std::ios::binary);
@@ -94,7 +76,6 @@ void RadarWindow::on_start_button_clicked() {
   }
   // Just plot the first pulse for now
   size_t nplot = num_samp_rx / num_pulses_tx;
-  // size_t nplot = 300;
   std::vector<double> xdata(nplot);
   std::vector<double> ydata(nplot);
   for (int i = 0; i < nplot; i++) {
@@ -103,7 +84,6 @@ void RadarWindow::on_start_button_clicked() {
   }
   rx_data_curve->setSamples(xdata.data(), ydata.data(), nplot);
   rx_data_curve->attach(ui->rx_plot);
-
   ui->rx_plot->replot();
   ui->rx_plot->show();
 

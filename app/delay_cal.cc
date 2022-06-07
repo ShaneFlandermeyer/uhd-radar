@@ -132,24 +132,18 @@ int main(int argc, char *argv[]) {
   // Initialzie the USRP object
   double freq = 5e9;
   double start_time = 0.2;
-  double tx_gain = 50;
-  double rx_gain = 40;
+  // double tx_gain = 50;
+  // double rx_gain = 40;
+  double tx_gain = 10;
+  double rx_gain = 10;
   std::string args = "";
   boost::thread_group tx_thread;
-  // usrp.reset();
   
 
-  std::vector<double> rates = {10e6, 20e6, 30e6, 40e6, 50e6};
-  
-  // std::vector<double> rates = {40e6};
+  // std::vector<double> rates = {10e6, 20e6, 30e6, 40e6, 50e6};
+  std::vector<double> rates = {12.5e6, 25e6, 50e6, 100e6, 200e6};
   for (auto rate : rates) {
     uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(args);
-    // if (rate == 10e6) {
-    //   usrp->set_master_clock_rate(40e6);
-    // } else {
-    //   usrp->set_master_clock_rate(rate);
-    // }
-    
     usrp->set_tx_freq(freq);
     usrp->set_rx_freq(freq);
     usrp->set_tx_gain(tx_gain);
@@ -158,13 +152,20 @@ int main(int argc, char *argv[]) {
     usrp->set_rx_rate(rate);
     // std::this_thread::sleep_for(std::chrono::seconds(1));
     // Initialize the waveform object
-    double bandwidth = 10e6;
+    double bandwidth = rate/2;
     double pulse_width = 20e-6;
     double prf = 10e3;
     plasma::LinearFMWaveform waveform(bandwidth, pulse_width, prf, rate);
+    Eigen::ArrayXcf waveform_data = waveform.step().cast<std::complex<float>>();
+    std::string filename1 =
+        "/home/shane/tx_" + std::to_string((int)(rate / 1e6)) + ".dat";
+    std::ofstream outfile1(filename1, std::ios::out | std::ios::binary);
+    outfile1.write((char *)waveform_data.data(),
+                  sizeof(std::complex<float>) * (waveform_data.size()));
+    outfile1.close();
 
     // Set up Tx buffer
-    Eigen::ArrayXcf waveform_data = waveform.step().cast<std::complex<float>>();
+    
     std::vector<std::complex<float>> *tx_buff =
         new std::vector<std::complex<float>>(
             waveform_data.data(), waveform_data.data() + waveform_data.size());
@@ -177,17 +178,7 @@ int main(int argc, char *argv[]) {
     std::vector<std::complex<float>> rx_buff(num_samp_rx, 0);
     rx_buff_ptrs.push_back(&rx_buff.front());
 
-    // Send zeros to get a consistent delay
-    std::vector<std::complex<float> *> temp_tx_buff_ptrs;
-    std::vector<std::complex<float>> *temp_tx_buff =
-        new std::vector<std::complex<float>>(waveform_data.size(), 0);
-    temp_tx_buff_ptrs.push_back(&temp_tx_buff->front());
-    tx_thread.create_thread(boost::bind(&uhd::radar::transmit, usrp,
-                                        temp_tx_buff_ptrs, 1,
-                                        waveform_data.size(), 0.0));
-    uhd::radar::receive(usrp, rx_buff_ptrs, waveform_data.size(), 0.0);
-    tx_thread.join_all();
-    // Send the actual data to be used for calibration
+    // Send the  data to be used for calibration
     uhd::time_spec_t time_now = usrp->get_time_now();
     tx_thread.create_thread(boost::bind(&uhd::radar::transmit, usrp,
                                         tx_buff_ptrs, 1, waveform_data.size(),
