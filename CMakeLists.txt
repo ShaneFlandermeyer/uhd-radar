@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
-project(uhd-radar VERSION 0.1 LANGUAGES CXX)
+project(uhd_radar 
+  VERSION 0.1
+  LANGUAGES CXX)
 
 # Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
@@ -28,6 +30,18 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+########################################################################
+# Install directories
+########################################################################
+# CMake module base path
+if (NOT CMAKE_MODULES_DIR)
+  set(CMAKE_MODULES_DIR lib/cmake)
+endif()
+
+set(UHD_RADAR_INCLUDE_DIR include/${CMAKE_PROJECT_NAME})
+set(UHD_RADAR_LIB_DIR lib)
+set(UHD_RADAR_CMAKE_DIR ${CMAKE_MODULES_DIR}/${CMAKE_PROJECT_NAME})
+set(UHD_RADAR_APP_DIR bin)
 
 ########################################################################
 # Find build dependencies
@@ -72,6 +86,24 @@ link_libraries(${UHD_LIBRARIES} ${Boost_LIBRARIES})
 ########################################################################
 # Add subdirectories
 ########################################################################
-add_subdirectory(include)
+add_subdirectory(include/uhd_radar)
 add_subdirectory(lib)
 add_subdirectory(app)
+
+########################################################################
+# Create uninstall target
+########################################################################
+configure_file(
+    ${CMAKE_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
+@ONLY)
+
+add_custom_target(uninstall
+    ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
+    )
+########################################################################
+# Install cmake search helper for this library
+########################################################################
+install(FILES cmake/${CMAKE_PROJECT_NAME}-config.cmake
+    DESTINATION ${UHD_RADAR_CMAKE_DIR}
+)
