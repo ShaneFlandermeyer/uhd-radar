@@ -1,4 +1,9 @@
-
+list(APPEND
+  UHD_RADAR_APPS
+  init_usrp
+  radar_gui
+  delay_cal
+)
 ########################################################################
 # Add executables
 ########################################################################
@@ -9,10 +14,12 @@ add_executable(radar_gui
   main.cc
   radar_window.cc)
 target_link_libraries(radar_gui PUBLIC uhd_radar)
+install(TARGETS radar_gui DESTINATION ${UHD_RADAR_APP_DIR})
 
 add_executable(delay_cal
   delay_cal.cc)
 target_link_libraries(delay_cal PUBLIC uhd_radar)
+install(TARGETS delay_cal DESTINATION ${UHD_RADAR_APP_DIR})
 # set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 # add_executable(plasma-loopback plasma-loopback.cc)
@@ -25,4 +32,5 @@ target_link_libraries(delay_cal PUBLIC uhd_radar)
 # add_executable(b210_loopback b210_loopback.cc  ${UHD_RADAR_SOURCES})
 # target_link_libraries(b210_loopback uhd-radar)
 # target_include_directories(b210_loopback PUBLIC ${CMAKE_SOURCE_DIR}/include)
+
 
