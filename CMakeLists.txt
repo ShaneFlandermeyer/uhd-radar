@@ -68,7 +68,6 @@ endif()
 # Add UHD boost requirements
 set(UHD_BOOST_REQUIRED_COMPONENTS
   program_options
-  filesystem
   system
   thread)
 set(BOOST_MIN_VERSION 1.58)
