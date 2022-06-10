@@ -12,10 +12,10 @@
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <uhd/usrp/multi_usrp.hpp>
-
+#include <uhd/utils/thread.hpp>
 #include "../ui/ui_radar_window.h"
-#include "receive.h"
-#include "transmit.h"
+// #include "receive.h"
+// #include "transmit.h"
 
 namespace Ui {
 class RadarWindow;
@@ -29,6 +29,13 @@ class RadarWindow : public QMainWindow {
   ~RadarWindow() override;
   void update_usrp();
   void update_waveform();
+  void pulse_doppler_worker();
+  void transmit(uhd::usrp::multi_usrp::sptr usrp,
+              std::vector<std::complex<float> *> buff_ptrs, size_t num_pulses,
+              size_t num_samps_pulse, uhd::time_spec_t start_time);
+  void receive(uhd::usrp::multi_usrp::sptr usrp,
+                 std::vector<std::complex<float> *> buff_ptrs, size_t num_samps,
+                 uhd::time_spec_t start_time);
 
   // Objects
   uhd::usrp::multi_usrp::sptr usrp;
@@ -43,15 +50,18 @@ class RadarWindow : public QMainWindow {
   std::string tx_args, rx_args;
   size_t num_pulses_tx;
   size_t delay_samps;
+  std::atomic<bool> stop_button_clicked;
 
  private slots:
   void on_usrp_update_button_clicked();
   void on_waveform_update_button_clicked();
   void on_start_button_clicked();
+  void on_stop_button_clicked();
   void on_file_button_clicked();
 
+
  private:
-  boost::thread_group pulse_doppler_thread;
+  std::thread pulse_doppler_thread;
   QwtPlotCurve *rx_data_curve;
 
   void read_calibration_json();

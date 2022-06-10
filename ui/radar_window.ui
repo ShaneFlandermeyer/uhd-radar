@@ -68,7 +68,7 @@
       <item row="1" column="3">
        <widget class="QLineEdit" name="rx_rate">
         <property name="text">
-         <string>10e6</string>
+         <string>200e6</string>
         </property>
        </widget>
       </item>
@@ -138,7 +138,7 @@
       <item row="3" column="1">
        <widget class="QLineEdit" name="tx_gain">
         <property name="text">
-         <string>50</string>
+         <string>10</string>
         </property>
        </widget>
       </item>
@@ -152,7 +152,7 @@
       <item row="1" column="1">
        <widget class="QLineEdit" name="tx_rate">
         <property name="text">
-         <string>10e6</string>
+         <string>200e6</string>
         </property>
        </widget>
       </item>
@@ -180,7 +180,7 @@
       <item row="3" column="3">
        <widget class="QLineEdit" name="rx_gain">
         <property name="text">
-         <string>40</string>
+         <string>10</string>
         </property>
        </widget>
       </item>
@@ -203,10 +203,16 @@
         <property name="text">
          <string>Write to file?</string>
         </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
        </widget>
       </item>
       <item row="9" column="1">
        <widget class="QLineEdit" name="file_line_edit">
+        <property name="text">
+         <string>/home/shane/debug.dat</string>
+        </property>
         <property name="readOnly">
          <bool>false</bool>
         </property>
@@ -226,20 +232,6 @@
       <string>Waveform</string>
      </attribute>
      <layout class="QGridLayout" name="gridLayout">
-      <item row="1" column="1">
-       <widget class="QLineEdit" name="bandwidth">
-        <property name="text">
-         <string>5e6</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="label_13">
-        <property name="text">
-         <string>PRF</string>
-        </property>
-       </widget>
-      </item>
       <item row="1" column="0">
        <widget class="QLabel" name="label_11">
         <property name="text">
@@ -254,38 +246,17 @@
         </property>
        </widget>
       </item>
-      <item row="5" column="0">
-       <widget class="QPushButton" name="waveform_update_button">
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="bandwidth">
         <property name="text">
-         <string>Update</string>
+         <string>150e6</string>
         </property>
        </widget>
       </item>
       <item row="4" column="0">
-       <widget class="QLabel" name="label_14">
+       <widget class="QPushButton" name="waveform_update_button">
         <property name="text">
-         <string>Sample Rate</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="label_12">
-        <property name="text">
-         <string>Pulse width</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1">
-       <widget class="QLineEdit" name="prf">
-        <property name="text">
-         <string>1e3</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="1">
-       <widget class="QLineEdit" name="samp_rate">
-        <property name="text">
-         <string>10e6</string>
+         <string>Update</string>
         </property>
        </widget>
       </item>
@@ -298,6 +269,27 @@
         </item>
        </widget>
       </item>
+      <item row="3" column="1">
+       <widget class="QLineEdit" name="prf">
+        <property name="text">
+         <string>1e3</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="label_13">
+        <property name="text">
+         <string>PRF</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_12">
+        <property name="text">
+         <string>Pulse width</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </widget>
@@ -306,7 +298,7 @@
      <rect>
       <x>10</x>
       <y>270</y>
-      <width>357</width>
+      <width>381</width>
       <height>71</height>
      </rect>
     </property>
@@ -314,14 +306,14 @@
      <item>
       <widget class="QLabel" name="label_17">
        <property name="text">
-        <string>Pulses to Send</string>
+        <string>Pulses per CPI</string>
        </property>
       </widget>
      </item>
      <item>
       <widget class="QLineEdit" name="num_pulses_tx">
        <property name="text">
-        <string>128</string>
+        <string>10</string>
        </property>
       </widget>
      </item>
@@ -329,6 +321,13 @@
       <widget class="QPushButton" name="start_button">
        <property name="text">
         <string>Start</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="stop_button">
+       <property name="text">
+        <string>Stop</string>
        </property>
       </widget>
      </item>

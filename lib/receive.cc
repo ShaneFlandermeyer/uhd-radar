@@ -17,8 +17,8 @@ long int receive(uhd::usrp::multi_usrp::sptr usrp,
 
   static size_t channels = buff_ptrs.size();
   static std::vector<size_t> channel_vec;
-  uhd::stream_args_t stream_args("fc32", "sc16");
-  uhd::rx_streamer::sptr rx_stream;
+  static uhd::stream_args_t stream_args("fc32", "sc16");
+  static uhd::rx_streamer::sptr rx_stream;
   if (first) {
     first = false;
     if (channel_vec.size() == 0) {
@@ -27,8 +27,9 @@ long int receive(uhd::usrp::multi_usrp::sptr usrp,
       }
     }
     stream_args.channels = channel_vec;
+    rx_stream = usrp->get_rx_stream(stream_args);
   }
-  rx_stream = usrp->get_rx_stream(stream_args);
+  
 
   uhd::rx_metadata_t md;
 
