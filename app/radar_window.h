@@ -16,6 +16,7 @@
 #include "../ui/ui_radar_window.h"
 // #include "receive.h"
 // #include "transmit.h"
+#include <queue>
 
 namespace Ui {
 class RadarWindow;
@@ -36,7 +37,8 @@ class RadarWindow : public QMainWindow {
   void receive(uhd::usrp::multi_usrp::sptr usrp,
                  std::vector<std::complex<float> *> buff_ptrs, size_t num_samps,
                  uhd::time_spec_t start_time);
-
+  // void write(std::complex<float>* data, size_t num_samps);
+  std::ofstream file;
   // Objects
   uhd::usrp::multi_usrp::sptr usrp;
   Ui::RadarWindow *ui;
@@ -51,6 +53,9 @@ class RadarWindow : public QMainWindow {
   size_t num_pulses_tx;
   size_t delay_samps;
   std::atomic<bool> stop_button_clicked;
+  std::queue<std::complex<float>> write_queue;
+  std::vector<std::complex<float>> rx_buff;
+  // std::thread write_thread;
 
  private slots:
   void on_usrp_update_button_clicked();

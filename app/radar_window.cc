@@ -61,21 +61,18 @@ void RadarWindow::transmit(uhd::usrp::multi_usrp::sptr usrp,
                            std::vector<std::complex<float> *> buff_ptrs,
                            size_t num_pulses, size_t num_samps_pulse,
                            uhd::time_spec_t start_time) {
-  static bool first = true;
+  bool first = true;
   uhd::set_thread_priority_safe(1);
 
   // static bool first = true;
-  static uhd::stream_args_t tx_stream_args("fc32", "sc16");
-  static uhd::tx_streamer::sptr tx_stream;
+  uhd::stream_args_t tx_stream_args("fc32", "sc16");
+  uhd::tx_streamer::sptr tx_stream;
   // tx_stream.reset();
-  if (first) {
-    first = false;
-    tx_stream_args.channels.push_back(0);
-    tx_stream = usrp->get_tx_stream(tx_stream_args);
-  }
+  tx_stream_args.channels.push_back(0);
+  tx_stream = usrp->get_tx_stream(tx_stream_args);
 
   // Create metadata structure
-  static uhd::tx_metadata_t tx_md;
+  uhd::tx_metadata_t tx_md;
   tx_md.start_of_burst = true;
   tx_md.end_of_burst = false;
   tx_md.has_time_spec = (start_time.get_real_secs() > 0 ? true : false);
@@ -92,38 +89,36 @@ void RadarWindow::transmit(uhd::usrp::multi_usrp::sptr usrp,
   tx_stream->send("", 0, tx_md);
 }
 
+// void RadarWindow::write(std::complex<float> *ptr, size_t len) {
+//   // uhd::set_thread_priority_safe(1);
+
+//   file.write((const char *)ptr, len * sizeof(std::complex<float>));
+//   return;
+// }
+
 void RadarWindow::receive(uhd::usrp::multi_usrp::sptr usrp,
                           std::vector<std::complex<float> *> buff_ptrs,
                           size_t num_samps, uhd::time_spec_t start_time) {
-  // TODO: Beware a bug on X3xx radios where recreation of streams will fail
-  // after 256 iterations. It might be necessary to make the streamer static so
-  // it is only created once. See
-  // https://marc.info/?l=usrp-users&m=145047669625107&w=1 for bug info, and
-  // https://github.com/jonasmc83/USRP_Software_defined_radar for a possible
-  // solution
-
-  static bool first = true;
-uhd::set_thread_priority_safe(1);
-  static size_t channels = buff_ptrs.size();
-  static std::vector<size_t> channel_vec;
-  static uhd::stream_args_t stream_args("fc32", "sc16");
-  static uhd::rx_streamer::sptr rx_stream;
-  if (first) {
-    first = false;
-    if (channel_vec.size() == 0) {
-      for (size_t i = 0; i < channels; i++) {
-        channel_vec.push_back(i);
-      }
+  uhd::set_thread_priority_safe(1);
+  file = std::ofstream(ui->file_line_edit->text().toStdString(),
+                       std::ios::out | std::ios::binary);
+  size_t channels = buff_ptrs.size();
+  std::vector<size_t> channel_vec;
+  uhd::stream_args_t stream_args("fc32", "sc16");
+  uhd::rx_streamer::sptr rx_stream;
+  if (channel_vec.size() == 0) {
+    for (size_t i = 0; i < channels; i++) {
+      channel_vec.push_back(i);
     }
-    stream_args.channels = channel_vec;
-    rx_stream = usrp->get_rx_stream(stream_args);
   }
+  stream_args.channels = channel_vec;
+  rx_stream = usrp->get_rx_stream(stream_args);
 
   uhd::rx_metadata_t md;
 
   // Set up streaming
   uhd::stream_cmd_t stream_cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
-  stream_cmd.num_samps = num_samps;
+  // stream_cmd.num_samps = num_samps;
   stream_cmd.time_spec = start_time;
   stream_cmd.stream_now = (start_time.get_real_secs() > 0 ? false : true);
   rx_stream->issue_stream_cmd(stream_cmd);
@@ -132,8 +127,6 @@ uhd::set_thread_priority_safe(1);
   size_t num_samps_total = 0;
   std::vector<std::complex<float> *> buff_ptrs2(buff_ptrs.size());
   double timeout = 0.5 + start_time.get_real_secs();
-  // std::ofstream outfile(ui->file_line_edit->text().toStdString(),
-  //                       std::ios::out | std::ios::binary);
   while (not stop_button_clicked) {
     // Move storing pointer to correct location
     for (size_t i = 0; i < channels; i++)
@@ -141,6 +134,7 @@ uhd::set_thread_priority_safe(1);
 
     // Sampling data
     size_t samps_to_recv = std::min(num_samps - num_samps_total, max_num_samps);
+
     size_t num_rx_samps =
         rx_stream->recv(buff_ptrs2, samps_to_recv, md, timeout);
     timeout = 0.5;
@@ -150,29 +144,31 @@ uhd::set_thread_priority_safe(1);
     // handle the error code
     // if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) break;
     // if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) break;
-
     if (num_samps_total >= num_samps) {
       num_samps_total = 0;
-      // stream_cmd.stream_now = true;
-      // rx_stream->issue_stream_cmd(stream_cmd);
-      // Process CPI data
-      // outfile.write((char *)buff_ptrs[0],
-      //               num_samps * sizeof(std::complex<float>));
+      if (ui->file_write_checkbox->isChecked()) {
+        // TODO: Can't write to a file quickly enough
+        file.write((const char *)buff_ptrs[0], num_samps * sizeof(std::complex<float>));
+      }
+
+      // for (size_t i = 0; i < num_samps; i++) {
+      //   write_queue.push(buff_ptrs[0][i]);
+      // }
     }
   }
+  // write_thread.join();
   stream_cmd.stream_mode = uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS;
   stream_cmd.stream_now = true;
   rx_stream->issue_stream_cmd(stream_cmd);
-  // outfile.close();
+  file.close();
 }
 
 void RadarWindow::pulse_doppler_worker() {
-  
   static bool first = true;
   update_usrp();
   update_waveform();
   // boost::thread_group tx_thread;
-  std::thread tx_thread;
+  std::thread tx_thread, rx_thread;
 
   // Set up Tx buffer
   Eigen::ArrayXcf waveform_data = waveform.step().cast<std::complex<float>>();
@@ -184,18 +180,19 @@ void RadarWindow::pulse_doppler_worker() {
   // Set up Rx buffer
   size_t num_samp_rx = waveform_data.size() * num_pulses_tx + delay_samps;
   std::vector<std::complex<float> *> rx_buff_ptrs;
-  std::vector<std::complex<float>> rx_buff(num_samp_rx, 0);
+  rx_buff = std::vector<std::complex<float>>(num_samp_rx, 0);
   rx_buff_ptrs.push_back(&rx_buff.front());
 
   size_t cpi_count = 0;
 
-  uhd::time_spec_t start_time = usrp->get_time_now() + 0.5;
-  // transmit(usrp,tx_buff_ptrs,num_pulses_tx,waveform_data.size(),start_time);
+  uhd::time_spec_t start_time = usrp->get_time_now() + 0.2;
   tx_thread = std::thread(&RadarWindow::transmit, this, usrp, tx_buff_ptrs,
                           num_pulses_tx, waveform_data.size(), start_time);
-  receive(usrp, rx_buff_ptrs, num_samp_rx, start_time);
+  rx_thread = std::thread(&RadarWindow::receive, this, usrp, rx_buff_ptrs,
+                          num_samp_rx, start_time);
+  // file.close();
   tx_thread.join();
-
+  rx_thread.join();
   // tx_thread.create_thread(boost::bind(&RadarWindow::transmit, usrp,
   //                                       tx_buff_ptrs, num_pulses_tx,
   //                                       waveform_data.size(), start_time));
